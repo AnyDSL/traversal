@@ -19,7 +19,7 @@ fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayPacket) -> ()) ->
         // Build a packet of rays of size 8 from the array
         let mut packet : RayPacket;
 
-        for c in range(0, vector_size) {
+        for c in @range(0, vector_size) {
             set_real(&packet.org.x, c, rays(k + c).org(0));
             set_real(&packet.org.y, c, rays(k + c).org(1));
             set_real(&packet.org.z, c, rays(k + c).org(2));
@@ -54,7 +54,7 @@ fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayPacket) -> ()) ->
 
 fn intersect_leaf(mut packet: &RayPacket, accel: Accel, node: i32) -> () {
     // Test each ray of the packet against each triangle of the node
-    for tri, v0, v1, v2 in iterate_triangles(accel, node) {    
+    for tri, v0, v1, v2 in iterate_triangles(accel, node) {
         intersect_ray_tri(packet.org, packet.dir, v0, v1, v2,
             |t, u, v, intr| {
                 let mask = intr & t < packet.tmax & t > packet.tmin;

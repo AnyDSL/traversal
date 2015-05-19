@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
     std::cout << duration << "ms for " << times << " iteration(s)." << std::endl;
-    std::cout << ray_count * times * 1000.0 / duration << " rays/sec" << std::endl;
+    std::cout << ray_count * times * 1000.0 / duration << " rays/sec." << std::endl;
     
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {

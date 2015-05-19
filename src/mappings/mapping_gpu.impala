@@ -1,6 +1,6 @@
 // Mapping for GPU raytracing
-static postpone_count = 8;
-static block_size = 32;
+static postpone_count = 0;
+static block_size = 64;
 
 struct RayData {
     org: Vec3,
@@ -21,7 +21,7 @@ fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayData) -> ()) -> (
     let block = (block_size, 1, 1);
 
     acc(dev, grid, block, || @{
-        let id = acc_tidx();
+        let id = acc_gidx();
 
         let mut ray = RayData {
             org: Vec3 { x: rays(id).org(0), y: rays(id).org(1), z: rays(id).org(2) },
@@ -38,8 +38,8 @@ fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayData) -> ()) -> (
 
         body(&ray);
 
-        rays(id).tmax = ray.tmax;
         rays(id).tri = ray.tri;
+        rays(id).tmax = ray.tmax;
         rays(id).u = ray.u;
         rays(id).v = ray.v;
     })
@@ -47,9 +47,8 @@ fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayData) -> ()) -> (
 
 fn intersect_leaf(mut ray: &RayData, accel: Accel, node: i32) -> () @{
     for tri, v0, v1, v2 in iterate_triangles(accel, node) @{
-        intersect_ray_tri(ray.org, ray.dir, v0, v1, v2, |t, u, v, mut mask| @{
-            mask &= t < ray.tmax & t > ray.tmin;
-            if (mask) @{
+        intersect_ray_tri(ray.org, ray.dir, v0, v1, v2, |t, u, v, mask| @{
+            if any(mask & t < ray.tmax & t > ray.tmin) @{
                 ray.tri = tri;
                 ray.tmax = t;
                 ray.u = u;
