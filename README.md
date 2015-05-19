@@ -4,8 +4,7 @@ This is the main repository for the impala traversal code.
 
 ### Building ###
 
-Run CMake, and configure build process to generate the different traversal
-variants by changing the following variables :
+You can run CMake to generate the different traversal variants by changing the following variables :
 
 * BACKEND : defines the backend to generate code for (supported values: cpu, avx, nvvm)
 * VECTORIZE : defines manual vector size to 1, 4, 8, or 16 (avx backend only supports 1)
