@@ -1,0 +1,67 @@
+type Real = simd[f32 * 16];
+type Id = simd[i32 * 16];
+type Intr = simd[bool * 16];
+
+fn id(i: i32) -> Id {
+    simd[i, i, i, i, i, i, i, i, i, i, i, i, i, i, i, i]
+}
+
+fn set_id(mut id: &Id, i: i32, j: i32) -> () {
+    id(i) = j
+}
+
+fn get_id(id: Id, i: i32) -> i32 {
+    id(i)
+}
+
+fn real(f: f32) -> Real {
+    simd[f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, f]
+}
+
+fn set_real(mut r: &Real, i: i32, f: f32) -> () {
+    r(i) = f;
+}
+
+fn get_real(r: Real, i: i32) -> f32 {
+    r(i)
+}
+
+fn any(i: Intr) -> bool {
+    i(0)  | i(1)  | i(2)  | i(3)  |
+    i(4)  | i(5)  | i(6)  | i(7)  |
+    i(8)  | i(9)  | i(10) | i(11) |
+    i(12) | i(13) | i(14) | i(15)
+}
+
+fn all(i: Intr) -> bool {
+    i(0)  & i(1)  & i(2)  & i(3)  &
+    i(4)  & i(5)  & i(6)  & i(7)  &
+    i(8)  & i(9)  & i(10) & i(11) &
+    i(12) & i(13) & i(14) & i(15)
+}
+
+fn ballot(i: Intr) -> bool {
+    let j = select16i32(i,
+        simd[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        simd[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    j(0) + j(1) + j(2)  + j(3)  + j(4)  + j(5)  + j(6)  + j(7) +
+    j(8) + j(9) + j(10) + j(11) + j(12) + j(13) + j(14) + j(15) >= 8
+}
+
+fn id_mask_store(i: Intr, src: Id, mut dst: &Id) -> () {
+    *dst = select16i32(i, src, *dst);
+}
+
+fn real_mask_store(i: Intr, src: Real, mut dst: &Real) -> () {
+    *dst = select16f32(i, src, *dst);
+}
+
+fn min_real(a: Real, b: Real)-> Real @{
+    select16f32(a < b, a, b)
+}
+
+fn max_real(a: Real, b: Real)-> Real @{
+    select16f32(a > b, a, b)
+}
+
+static vector_size = 16;

@@ -1,0 +1,73 @@
+// Mapping for GPU raytracing
+static postpone_count = 8;
+static block_size = 32;
+
+struct RayData {
+    org: Vec3,
+    dir: Vec3,
+    inv: Vec3,
+    tri: i32,
+    tmin: f32,
+    tmax: f32,
+    u: f32,
+    v: f32
+}
+
+fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayData) -> ()) -> () {
+    assert(|| {(j - i) / block_size == 1}, "iterate_rays : invalid number of rays");
+
+    let dev = acc_dev();
+    let grid = (j - i, 1, 1);
+    let block = (block_size, 1, 1);
+
+    acc(dev, grid, block, || @{
+        let id = acc_tidx();
+
+        let mut ray = RayData {
+            org: Vec3 { x: rays(id).org(0), y: rays(id).org(1), z: rays(id).org(2) },
+            dir: Vec3 { x: rays(id).dir(0), y: rays(id).dir(1), z: rays(id).dir(2) },
+            inv: Vec3 { x: 1.0f / rays(id).dir(0),
+                        y: 1.0f / rays(id).dir(1),
+                        z: 1.0f / rays(id).dir(2) },
+            tri: rays(id).tri,
+            tmin: rays(id).tmin,
+            tmax: rays(id).tmax,
+            u: rays(id).u,
+            v: rays(id).v
+        };
+
+        body(&ray);
+
+        rays(id).tmax = ray.tmax;
+        rays(id).tri = ray.tri;
+        rays(id).u = ray.u;
+        rays(id).v = ray.v;
+    })
+}
+
+fn intersect_leaf(mut ray: &RayData, accel: Accel, node: i32) -> () @{
+    for tri, v0, v1, v2 in iterate_triangles(accel, node) @{
+        intersect_ray_tri(ray.org, ray.dir, v0, v1, v2, |t, u, v, mut mask| @{
+            mask &= t < ray.tmax & t > ray.tmin;
+            if (mask) @{
+                ray.tri = tri;
+                ray.tmax = t;
+                ray.u = u;
+                ray.v = v;
+            }
+            continue()
+        })
+    }
+}
+
+fn intersect_node(ray: &RayData, accel: Accel, node: i32, stack: &Stack) -> () @{
+    for min, max, push in iterate_children(accel, node, stack) @{
+        intersect_ray_box(ray.org, ray.inv, min, max, |t_entry, t_exit, mask| @{
+            if any(mask & ray.tmin < t_exit & ray.tmax > t_entry) @{
+                push(t_entry)
+            }
+            continue()
+        })
+    }
+}
+

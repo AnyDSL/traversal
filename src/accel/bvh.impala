@@ -1,0 +1,84 @@
+// Standard BVH
+struct Accel {
+    nodes: &[BvhNode],
+    indices: &[i32],
+    vertices: &[float],
+    root: i32
+}
+
+struct BvhNode {
+    min: [f32 * 3],
+    child_tri: i32,
+    max: [f32 * 3],
+    prim_count: i32
+}
+
+fn root_node(accel: Accel) -> i32 {
+    accel.root
+}
+
+fn is_leaf(accel: Accel, node: i32) -> bool {
+    accel.nodes(node).prim_count != 0
+}
+
+type PushFn = fn (Real) -> ();
+fn iterate_children(accel: Accel, node: i32, mut stack: &Stack, body: fn (Vec3, Vec3, PushFn) -> ()) -> () {
+    assert(|| { accel.nodes(node).prim_count == 0 }, "iterate_children : leaf node has no children");
+
+    fn intr_node(node: i32) -> Real {
+        body(Vec3 {
+            x: real(accel.nodes(node).min(0)),
+            y: real(accel.nodes(node).min(1)),
+            z: real(accel.nodes(node).min(2))
+        }, Vec3 {
+            x: real(accel.nodes(node).max(0)),
+            y: real(accel.nodes(node).max(1)),
+            z: real(accel.nodes(node).max(2))
+        }, |t| {
+            push_node(stack, node);
+            return(t)
+        });
+
+        real(flt_max)
+    }
+
+    // Intersect left and right child and record sort keys
+    let id = stack.id;
+    let t_left = intr_node(accel.nodes(node).child_tri);
+    let t_right = intr_node(accel.nodes(node).child_tri + 1);
+
+    // Swap children if they are not in order
+    let count = stack.id - id;
+    if count == 2 && ballot(t_left < t_right) {
+        let tmp = stack.data(stack.id);
+        stack.data(stack.id) = stack.data(stack.id - 1);
+        stack.data(stack.id - 1) = tmp;
+    }
+}
+
+fn iterate_triangles(accel: Accel, node: i32, body: fn (i32, Vec3, Vec3, Vec3) -> ()) -> () {
+    assert(|| { accel.nodes(node).prim_count != 0 }, "iterate_triangles : internal node has no triangle");
+
+    let first = accel.nodes(node).child_tri as i32;
+    let last = first + accel.nodes(node).prim_count as i32;
+    for i in range(first, last) {
+        let v0 = accel.indices(i * 3 + 0);
+        let v1 = accel.indices(i * 3 + 1);
+        let v2 = accel.indices(i * 3 + 2);
+
+        body(i, Vec3 {
+            x: real(accel.vertices(v0 * 3 + 0)),
+            y: real(accel.vertices(v0 * 3 + 1)),
+            z: real(accel.vertices(v0 * 3 + 2))
+        }, Vec3 {
+            x: real(accel.vertices(v1 * 3 + 0)),
+            y: real(accel.vertices(v1 * 3 + 1)),
+            z: real(accel.vertices(v1 * 3 + 2))
+        }, Vec3 {
+            x: real(accel.vertices(v2 * 3 + 0)),
+            y: real(accel.vertices(v2 * 3 + 1)),
+            z: real(accel.vertices(v2 * 3 + 2))
+        })
+    }
+}
+

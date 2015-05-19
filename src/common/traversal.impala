@@ -1,0 +1,45 @@
+// Core part of the traversal algorithm
+struct Ray {
+    org: [f32 * 3],
+    dir: [f32 * 3],
+    tri: i32,
+    tmin: f32,
+    tmax: f32,
+    u: f32,
+    v: f32
+}
+
+extern fn traverse_accel(accel_ptr: &Accel, rays: &[Ray], ray_count: i32) -> () @{
+    let accel = *accel_ptr;
+
+    for ray in iterate_rays(rays, 0, ray_count) @{
+        intersect_leaf(ray, accel, root_node(accel))
+        /*let mut stack = empty_stack();
+        let mut postponed = empty_stack();
+
+        push_node(&stack, root_node(accel));
+        while !is_empty(&stack) {
+            let id = pop_node(&stack);
+            
+            if is_leaf(accel, id) {
+                if postpone_count > 0 @{
+                    push_node(&postponed, id)
+                } else @{
+                    intersect_leaf(ray, accel, id)
+                }
+            } else @{
+                intersect_node(ray, accel, id, &stack);
+            }
+
+            if postpone_count > 0 @{
+                if stack_size(&postponed) >= postpone_count @{
+                    while !is_empty(&postponed) @{
+                        let id = pop_node(&postponed);
+                        intersect_leaf(ray, accel, id)
+                    }
+                }
+            }
+        }*/
+    }
+}
+

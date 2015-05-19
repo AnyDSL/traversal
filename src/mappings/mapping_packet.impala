@@ -1,0 +1,80 @@
+// Mapping for packet tracing on the CPU
+struct RayPacket {
+    org: Vec3,
+    dir: Vec3,
+    inv: Vec3,
+    tri: Id,
+    tmin: Real,
+    tmax: Real,
+    u: Real,
+    v: Real
+}
+
+static postpone_count = 0;
+
+fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayPacket) -> ()) -> () {
+    assert(|| {(j - i) % vector_size == 0}, "iterate_rays : invalid number of rays");
+
+    for k in range_step(i, j, vector_size) {
+        // Build a packet of rays of size 8 from the array
+        let mut packet : RayPacket;
+
+        for c in range(0, vector_size) {
+            set_real(&packet.org.x, c, rays(k + c).org(0));
+            set_real(&packet.org.y, c, rays(k + c).org(1));
+            set_real(&packet.org.z, c, rays(k + c).org(2));
+
+            set_real(&packet.dir.x, c, rays(k + c).dir(0));
+            set_real(&packet.dir.y, c, rays(k + c).dir(1));
+            set_real(&packet.dir.z, c, rays(k + c).dir(2));
+
+            set_id(&packet.tri, c, rays(k + c).tri);
+            set_real(&packet.tmin, c, rays(k + c).tmin);
+            set_real(&packet.tmax, c, rays(k + c).tmax);
+            set_real(&packet.u, c, rays(k + c).u);
+            set_real(&packet.v, c, rays(k + c).v);
+        }
+
+        packet.inv.x = real(1.0f) / packet.dir.x;
+        packet.inv.y = real(1.0f) / packet.dir.y;
+        packet.inv.z = real(1.0f) / packet.dir.z;
+
+        // Traverse the BVH
+        body(&packet);
+
+        // Write results back to the array
+        for c in range(0, vector_size) {
+            rays(k + c).tri = get_id(packet.tri, c);
+            rays(k + c).tmax = get_real(packet.tmax, c);
+            rays(k + c).u = get_real(packet.u, c);
+            rays(k + c).v = get_real(packet.v, c);
+        }
+    }
+}
+
+fn intersect_leaf(mut packet: &RayPacket, accel: Accel, node: i32) -> () {
+    // Test each ray of the packet against each triangle of the node
+    for tri, v0, v1, v2 in iterate_triangles(accel, node) {    
+        intersect_ray_tri(packet.org, packet.dir, v0, v1, v2,
+            |t, u, v, intr| {
+                let mask = intr & t < packet.tmax & t > packet.tmin;
+                id_mask_store(mask, id(tri), &packet.tri);
+                real_mask_store(mask, t, &packet.tmax);
+                real_mask_store(mask, u, &packet.u);
+                real_mask_store(mask, v, &packet.v);
+                continue()
+            })
+    }
+}
+
+fn intersect_node(packet: &RayPacket, accel: Accel, node: i32, stack: &Stack) -> () {
+    // Intersect the children of this node
+    for min, max, push in iterate_children(accel, node, stack) {
+        intersect_ray_box(packet.org, packet.inv, min, max, |t_entry, t_exit, mask| {
+            if any(mask & packet.tmin < t_exit & packet.tmax > t_entry) {
+                push(t_entry)
+            }
+            continue()
+        })
+    }
+}

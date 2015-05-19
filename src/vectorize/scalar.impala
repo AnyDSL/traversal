@@ -1,0 +1,58 @@
+type Real = f32;
+type Id = i32;
+type Intr = bool;
+
+fn id(i: i32) -> Id {
+    i
+}
+
+fn set_id(mut id: &Id, i: i32, j: i32) -> () {
+    *id = j
+}
+
+fn get_id(id: Id, i: i32) -> i32 {
+    id
+}
+
+fn real(f: f32) -> Real {
+    f
+}
+
+fn set_real(mut r: &Real, i: i32, f: f32) -> () {
+    *r = f;
+}
+
+fn get_real(r: Real, i: i32) -> f32 {
+    r
+}
+
+fn any(i: Intr) -> bool {
+    i
+}
+
+fn all(i: Intr) -> bool {
+    i
+}
+
+fn ballot(i: Intr) -> bool {
+    i
+}
+
+fn id_mask_store(i: Intr, src: Id, mut dst: &Id) -> () {
+    if i { *dst = src }
+}
+
+fn real_mask_store(i: Intr, src: Real, mut dst: &Real) -> () {
+    if i { *dst = src }
+}
+
+fn min_real(a: Real, b: Real)-> Real @{
+    if a < b { a } else { b }
+}
+
+fn max_real(a: Real, b: Real)-> Real @{
+    if a > b { a } else { b }
+}
+
+static vector_size = 1;
+

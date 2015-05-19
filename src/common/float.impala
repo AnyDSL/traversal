@@ -1,0 +1,18 @@
+static flt_epsilon = 1.0e-5f;
+static flt_max = 1.0e+37f;
+static flt_min = 1.0e-37f;
+static flt_dig = 6;
+static flt_radix = 2;
+static flt_pi = 3.14159265359f;
+static flt_sqrt2 = 1.41421356237f;
+static flt_sqrt3 = 1.73205080757f;
+
+static dbl_epsilon = 1.0e-9;
+static dbl_max = 1.0e+37;
+static dbl_min = 1.0e-37;
+static dbl_dig = 10;
+static dbl_radix = 2;
+static dbl_pi = 3.14159265359;
+static dbl_sqrt2 = 1.41421356237;
+static dbl_sqrt3 = 1.73205080757;
+

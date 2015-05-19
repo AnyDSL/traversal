@@ -1,0 +1,31 @@
+struct Stack {
+    data: [i32 * 32],
+    id: i32
+}
+
+fn empty_stack() -> Stack {
+    Stack {
+        data: [0, ..32],
+        id: -1
+    }
+}
+
+fn stack_size(stack: &Stack) -> i32 {
+    stack.id + 1
+}
+
+fn is_empty(stack: &Stack) -> bool {
+    stack.id < 0
+}
+
+fn push_node(mut stack: &Stack, id: i32) -> () {
+    stack.id++;
+    stack.data(stack.id) = id
+}
+
+fn pop_node(mut stack: &Stack) -> i32 {
+    let top = stack.data(stack.id);
+    stack.id--;
+    top
+}
+

@@ -1,0 +1,61 @@
+// Functions to iterate over an interval (prefixes: u for unsigned, b for backwards)
+fn range(a: i32, b: i32, body: fn(i32) -> ()) -> () {
+    if a < b {
+        body(a);
+        range(a + 1, b, body, return)
+    }
+}
+
+fn urange(a: u32, b: u32, body: fn(u32) -> ()) -> () {
+    if a < b {
+        body(a);
+        urange(a + 1u, b, body, return)
+    }
+}
+
+fn range_step(a: i32, b: i32, c: i32, body: fn(i32) -> ()) -> () {
+    if a < b {
+        body(a);
+        range_step(a + c, b, c, body, return)
+    }
+}
+
+fn urange_step(a: u32, b: u32, c: u32, body: fn(u32) -> ()) -> () {
+    if a < b {
+        body(a);
+        urange_step(a + c, b, c, body, return)
+    }
+}
+
+fn brange(a: i32, b: i32, body: fn(i32) -> ()) -> () {
+    if a > b {
+        body(a);
+        range(a - 1, b, body, return)
+    }
+}
+
+fn ubrange(a: u32, b: u32, body: fn(u32) -> ()) -> () {
+    if a > b {
+        body(a);
+        urange(a - 1u, b, body, return)
+    }
+}
+
+fn brange_step(a: i32, b: i32, c: i32, body: fn(i32) -> ()) -> () {
+    if a > b {
+        body(a);
+        range_step(a - c, b, c, body, return)
+    }
+}
+
+fn ubrange_step(a: u32, b: u32, c: u32, body: fn(u32) -> ()) -> () {
+    if a > b {
+        body(a);
+        urange_step(a - c, b, c, body, return)
+    }
+}
+
+fn ever(body: fn () -> ()) -> () {
+    body();
+    ever(body, return)
+}

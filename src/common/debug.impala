@@ -1,0 +1,16 @@
+extern "C" {
+    fn debug_abort(&[u8]) -> ();
+}
+
+fn is_debug() -> bool {
+    false
+}
+
+fn assert(cond: fn () -> bool, msg: &[u8]) -> () {
+    if @is_debug() {
+        if !@cond() {
+            debug_abort(msg);
+        }
+    }
+}
+
