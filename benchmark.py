@@ -3,6 +3,7 @@ import subprocess
 import os
 import getopt
 import sys
+from multiprocessing import Process
 
 # Benchmark configuration is in benchmarks.conf
 config = {}
@@ -33,7 +34,6 @@ def check_config():
 
     if not check_var('runs') or not check_var('dryruns'):
         return False
-    
 
     if not var_file('bvh_io') or not var_file('gen_prim') or not var_file('fbuf2png'):
         return False
@@ -72,7 +72,9 @@ def generate_config():
             "\n"
             "# Benchmark parameters\n"
             "runs = 1\n"
-            "dryruns = 0\n")
+            "dryruns = 0\n"
+            "width = 1024\n"
+            "height = 1024\n")
     f.close()
 
 def generate_scenes():
@@ -103,15 +105,13 @@ def generate_distribs():
         ctr = (params[4], params[5], params[6])
         up  = (params[7], params[8], params[9])
         fov = params[10]
-        w   = params[11]
-        h   = params[12]
         subprocess.call([config['gen_prim'],
             "-e", "(" + eye[0] + ") (" + eye[1] + ") (" + eye[2] + ")",
             "-c", "(" + ctr[0] + ") (" + ctr[1] + ") (" + ctr[2] + ")",
             "-u", "(" + up[0]  + ") (" + up[1]  + ") (" + up[2]  + ")",
             "-f", fov,
-            "-w", w,
-            "-h", h,
+            "-w", str(config['width']),
+            "-h", str(config['height']),
             config['distribs'] + "/" + name])
 
 def usage():
@@ -119,6 +119,14 @@ def usage():
           "    -h --help : Displays this message\n"
           "    --gen-scenes : Generates the scene files\n"
           "    --gen-distribs : Generates the ray distribution files\n")
+
+def remove_if_empty(name):
+    if os.stat(name).st_size == 0:
+        os.remove(name)
+
+def convert_fbuf(fbuf, png):
+    devnull = open(os.devnull, "w")
+    subprocess.call([config['fbuf2png'], fbuf, png, "-w", str(config['width']), "-h", str(config['height'])], stdout=devnull, stderr=devnull)
 
 def benchmark():
     # Get the list of scenes
@@ -138,7 +146,6 @@ def benchmark():
             for s in scenes:
                 if f.find(s) >= 0:
                     distribs[s].append(f[:-5])
-                        
 
     # Run the benchmarks sequentially
     for bench in config['benches']:
@@ -147,22 +154,39 @@ def benchmark():
         if not os.path.exists(resdir):
             os.makedirs(resdir)
 
+        # Call the benchmark program
+        to_convert = []
         for s in scenes:
             for d in distribs[s]:
                 name = s + "-" + d
                 print("   scene: " + s + ", distrib: " + d)
                 out = open(resdir + "/" + name + ".out", "w")
                 err = open(resdir + "/" + name + ".err", "w")
+                tmin = 0
+                tmax = 1e9
+                if d.find("shadow") >= 0:
+                    tmin = 0.001
+                    tmax = 0.999
                 subprocess.call([bench,
                     "-a", config['scenes'] + "/" + s + ".bvh",
                     "-r", config['distribs'] + "/" + d + ".rays",
-                    #"-tmin", tmin,
-                    #"-tmax", tmax,
+                    "-tmin", str(tmin),
+                    "-tmax", str(tmax),
                     "-n", str(config['runs']),
                     "-d", str(config['dryruns']),
-                    resdir + "/" + name + ".fbuf"], stdout=out, stderr=err)
+                    "-o", resdir + "/" + name + ".fbuf"], stdout=out, stderr=err)
                 out.close()
                 err.close()
+
+                remove_if_empty(resdir + "/" + name + ".out")
+                remove_if_empty(resdir + "/" + name + ".err")
+                if os.path.isfile(resdir + "/" + name + ".fbuf"):
+                    to_convert.append(resdir + "/" + name + ".fbuf")
+
+        # Convert .fbuf files to .png
+        for f in to_convert:
+            p = Process(target=convert_fbuf, args=(f, f[:-5] + ".png"))
+            p.start()
 
 def main():
     global config

@@ -15,14 +15,15 @@ int main(int argc, char** argv) {
     std::string accel_file, rays_file;
     std::string output;
     float tmin, tmax;
+    int times, warmup;
     bool help;
-    int times;
 
     ArgParser parser(argc, argv);
     parser.add_option<bool>("help", "h", "Shows this message", help, false);
     parser.add_option<std::string>("accel", "a", "Sets the acceleration structure file name", accel_file, "input.bvh", "input.bvh");
     parser.add_option<std::string>("rays", "r", "Sets the input ray distribution file name", rays_file, "input.rays", "input.rays");
     parser.add_option<int>("times", "n", "Sets the iteration count", times, 100, "count");
+    parser.add_option<int>("warmup", "d", "Sets the number of warmup iterations", warmup, 10, "count");
     parser.add_option<std::string>("output", "o", "Sets the output file name", output, "output.fbuf", "output.fbuf");
     parser.add_option<float>("tmin", "tmin", "Sets the minimum t parameter along the rays", tmin, 0.0f, "t");
     parser.add_option<float>("tmax", "tmax", "Sets the maximum t parameter along the rays", tmax, 1e9f, "t");
@@ -35,6 +36,8 @@ int main(int argc, char** argv) {
         parser.usage();
         return EXIT_SUCCESS;
     }
+
+    thorin_init();
 
     Accel* accel;
     if (!load_bvh(accel_file, accel)) {
@@ -51,9 +54,16 @@ int main(int argc, char** argv) {
 
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    thorin_init();
-
     Ray* ray_buffer = thorin_new<Ray>(ray_count);
+    memcpy(ray_buffer, rays, sizeof(Ray) * ray_count);
+
+    // Warmup iterations
+    for (int i = 0; i < warmup; i++) {
+        memcpy(ray_buffer, rays, sizeof(Ray) * ray_count);
+        traverse_accel(accel, ray_buffer, ray_count);
+    }
+
+    // Compute traversal time
     std::chrono::high_resolution_clock::duration time(0);
     for (int i = 0; i < times; i++) {
         memcpy(ray_buffer, rays, sizeof(Ray) * ray_count);
