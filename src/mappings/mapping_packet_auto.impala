@@ -52,7 +52,7 @@ fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayPacket) -> ()) ->
     }
 }
 
-fn intersect_leaf(mut packet: &RayPacket, accel: &Accel, node: i32) -> () {
+fn intersect_leaf(mut packet: &RayPacket, accel: Accel, node: i32) -> () {
     // Test each ray of the packet against each triangle of the node
     for tri, v0, v1, v2 in iterate_triangles(accel, node) {
         for i in vectorize(8, 0, 8) @{
@@ -70,7 +70,7 @@ fn intersect_leaf(mut packet: &RayPacket, accel: &Accel, node: i32) -> () {
     }
 }
 
-fn intersect_node(packet: &RayPacket, accel: &Accel, node: i32, stack: &Stack) -> () {
+fn intersect_node(packet: &RayPacket, accel: Accel, node: i32, stack: &Stack) -> () {
     // Intersect the children of this node
     for min, max, push in iterate_children(accel, node, stack) {
         for i in vectorize(8, 0, 8) @{
