@@ -8,6 +8,33 @@ from multiprocessing import Process
 # Benchmark configuration is in benchmarks.conf
 config = {}
 
+default_config = """ # Configuration file for the traversal benchmark
+
+# Tools
+ref_intr = ''                             # Reference intersection program
+bvh_io = ''                               # BVH file generator
+gen_prim = 'tools/GenPrimary/GenPrimary'  # Primary rays generator
+gen_shadow = 'tools/GenShadow/GenShadow'  # Shadow rays generator
+fbuf2png = 'tools/FBufToPng/FBufToPng'    # FBUF to PNG converter
+
+# Directories
+obj_dir  = 'models'     # OBJ models directory
+bvh_dir  = 'scenes'     # BVH file directory
+rays_dir = 'distribs'   # Ray distribution directory
+res_dir  = 'results'    # Benchmark results directory
+
+# Benchmark programs
+benches = []
+
+# Benchmark parameters
+runs = 1                # Number of iterations
+dryruns = 0             # Number of warmup iterations
+
+# Dataset
+rays = {}               # Dictionary of ray distributions associated with their parameters
+scenes = {}             # Dictionary of BVH files associated with their distributions
+"""
+
 def check_config():
     # Checks that variables in the configuration file are valid
     def check_var(var):
@@ -35,10 +62,10 @@ def check_config():
     if not check_var('runs') or not check_var('dryruns'):
         return False
 
-    if not var_file('bvh_io') or not var_file('gen_prim') or not var_file('fbuf2png'):
+    if not var_file('ref_intr') or not var_file('bvh_io') or not var_file('gen_prim') or not var_file('gen_shadow') or not var_file('fbuf2png'):
         return False
 
-    if not var_path('models') or not var_path('scenes') or not var_path('distribs') or not var_path('results'):
+    if not var_path('obj_dir') or not var_path('bvh_dir') or not var_path('rays_dir') or not var_path('res_dir'):
         return False
 
     if not check_var('benches'):
@@ -49,70 +76,61 @@ def check_config():
             print("Benchmark program '" + prg + "' is not a file.")
             return False
 
+    if not check_var('runs') or not check_var('dryruns') or not check_var('rays') or not check_var('scenes'):
+        return False
+
     return True
 
-def generate_config():
-    # Generates a default configuration file
-    f = open("benchmarks.conf", "w")
-    f.write("# Configuration file for the traversal benchmark\n"
-            "\n"
-            "# Tools\n"
-            "bvh_io = ''                               # BVH file generator\n"
-            "gen_prim = 'tools/GenPrimary/GenPrimary'  # Primary rays generator\n"
-            "fbuf2png = 'tools/FBufToPng/FBufToPng'    # FBUF to PNG converter\n"
-            "\n"
-            "# Directories\n"
-            "models = 'models'     # OBJ models directory\n"
-            "scenes = 'scenes'     # BVH file directory\n"
-            "distribs = 'distribs' # Ray distribution directory\n"
-            "results = 'results'   # Benchmark results directory\n"
-            "\n"
-            "# Benchmark programs\n"
-            "benches = []\n"
-            "\n"
-            "# Benchmark parameters\n"
-            "runs = 1\n"
-            "dryruns = 0\n"
-            "width = 1024\n"
-            "height = 1024\n")
-    f.close()
-
 def generate_scenes():
-    # Generates the BVH files with bv_io based on models/*.obj
-    for f in os.listdir(config['models']):
-        out = config['scenes'] + "/" + f[:-3] + "bvh"
-        if f.endswith(".obj") and not os.path.isfile(out):
-            subprocess.call([config['bvh_io'], config['models'] + "/" + f, out])
+    for s in config['scenes']:
+        print("* Scene: " + s)
+        obj_file = config['obj_dir'] + "/" + s[:-3] + "obj"
+        devnull = open(os.devnull, "w")
+        subprocess.call([config['bvh_io'], obj_file, config['bvh_dir'] + "/" + s], stdout=devnull, stderr=devnull)
 
 def generate_distribs():
-    # Generates the ray distributions based on distribs/list.txt
-    dist_names = {}
-    for l in open(config['distribs'] + "/" + "list.txt"):
-        l = l.strip()
-        if l[0] == '#' or len(l) == 0:
+    devnull = open(os.devnull, "w")
+    # Generate primary ray distributions
+    for name, viewport in config['rays'].items():
+        if 'generate' not in viewport:
             continue
-
-        params = l.split()
-        name = config['distribs'] + "/" + "dist-" + ",".join(params)
-        name = params[0]
-        if name in dist_names:
-            dist_names[name] += 1
-        else:
-            dist_names[name] = 1
-        name += "%02d" % dist_names[name] + ".rays"
-
-        eye = (params[1], params[2], params[3])
-        ctr = (params[4], params[5], params[6])
-        up  = (params[7], params[8], params[9])
-        fov = params[10]
-        subprocess.call([config['gen_prim'],
-            "-e", "(" + eye[0] + ") (" + eye[1] + ") (" + eye[2] + ")",
-            "-c", "(" + ctr[0] + ") (" + ctr[1] + ") (" + ctr[2] + ")",
-            "-u", "(" + up[0]  + ") (" + up[1]  + ") (" + up[2]  + ")",
-            "-f", fov,
-            "-w", str(config['width']),
-            "-h", str(config['height']),
-            config['distribs'] + "/" + name])
+        if viewport['generate'] == 'primary':
+            print("* Primary rays: " + name)
+            eye = viewport['eye']
+            ctr = viewport['center']
+            up  = viewport['up']
+            subprocess.call([config['gen_prim'],
+                "-e", "(" + str(eye[0]) + ") (" + str(eye[1]) + ") (" + str(eye[2]) + ")",
+                "-c", "(" + str(ctr[0]) + ") (" + str(ctr[1]) + ") (" + str(ctr[2]) + ")",
+                "-u", "(" + str(up[0])  + ") (" + str(up[1])  + ") (" + str(up[2])  + ")",
+                "-f", str(viewport['fov']),
+                "-w", str(viewport['width']),
+                "-h", str(viewport['height']),
+                config['rays_dir'] + "/" + name])
+    # Generate shadow ray distributions
+    for name, viewport in config['rays'].items():
+        if 'generate' not in viewport:
+            continue
+        if viewport['generate'] == 'shadow':
+            print("* Shadow rays: " + name)
+            fbuf = config['rays_dir'] + "/" + name + ".fbuf"
+            primary = config['rays'][viewport['primary']]
+            light = viewport['light']
+            # Intersect the scene to generate the primary ray .fbuf file
+            subprocess.call([config['ref_intr'],
+                "-a", config['bvh_dir'] + "/" + viewport['scene'],
+                "-r", config['rays_dir'] + "/" + viewport['primary'],
+                "-tmin", str(primary['tmin']),
+                "-tmax", str(primary['tmax']),
+                "-n", "1",
+                "-d", "0",
+                "-o", fbuf], stdout=devnull, stderr=devnull)
+            # Generate the shadow ray distribution from the result
+            subprocess.call([config['gen_shadow'],
+                "-p", config['rays_dir'] + "/" + viewport['primary'],
+                "-d", fbuf,
+                "-l", "(" + str(light[0]) + ") (" + str(light[1]) + ") (" + str(light[2]) + ")",
+                config['rays_dir'] + "/" + name])
 
 def usage():
     print("usage: benchmark.py [options]\n"
@@ -124,80 +142,68 @@ def remove_if_empty(name):
     if os.stat(name).st_size == 0:
         os.remove(name)
 
-def convert_fbuf(fbuf, png):
+def remove_suffix(name, suffix):
+    if name.endswith(suffix):
+        return name[:-len(suffix)]
+    return name
+
+def convert_fbuf(fbuf, png, w, h):
     devnull = open(os.devnull, "w")
-    subprocess.call([config['fbuf2png'], fbuf, png, "-w", str(config['width']), "-h", str(config['height'])], stdout=devnull, stderr=devnull)
+    subprocess.call([config['fbuf2png'], fbuf, png, "-w", str(w), "-h", str(h)], stdout=devnull, stderr=devnull)
 
 def benchmark():
-    # Get the list of scenes
-    scenes = []
-    for f in os.listdir(config['scenes']):
-        if f.endswith(".bvh"):
-            scenes.append(f[:-4])
-
-    # Get the list of ray distributions for each scene
-    distribs = {}
-    for s in scenes:
-        distribs[s] = []
-
-    for f in os.listdir(config['distribs']):
-        if f.endswith(".rays"):
-            # Add the distribution to each scene that is mentioned in its name
-            for s in scenes:
-                if f.find(s) >= 0:
-                    distribs[s].append(f[:-5])
-
     # Run the benchmarks sequentially
     for bench in config['benches']:
-        print("* Program : " + bench)
-        resdir = config['results'] + "/" + os.path.basename(bench)
+        print("* Program: " + bench)
+        resdir = config['res_dir'] + "/" + os.path.basename(bench)
         if not os.path.exists(resdir):
             os.makedirs(resdir)
 
         # Call the benchmark program
         to_convert = []
-        for s in scenes:
-            for d in distribs[s]:
-                name = s + "-" + d
-                print("   scene: " + s + ", distrib: " + d)
-                out = open(resdir + "/" + name + ".out", "w")
-                err = open(resdir + "/" + name + ".err", "w")
-                tmin = 0
-                tmax = 1e9
-                if d.find("shadow") >= 0:
-                    tmin = 0.001
-                    tmax = 0.999
+        for s, rays in config['scenes'].items():
+            for r in rays:
+                name = remove_suffix(s, ".bvh") + "-" + remove_suffix(r, ".rays")
+                print("   scene: " + s + ", distrib: " + r)
+                errname = resdir + "/" + name + ".out"
+                outname = resdir + "/" + name + ".err"
+                resname = resdir + "/" + name + ".fbuf"
+                tmin = config['rays'][r]['tmin']
+                tmax = config['rays'][r]['tmax']
+                width = config['rays'][r]['width']
+                height = config['rays'][r]['height']
                 subprocess.call([bench,
-                    "-a", config['scenes'] + "/" + s + ".bvh",
-                    "-r", config['distribs'] + "/" + d + ".rays",
+                    "-a", config['bvh_dir'] + "/" + s,
+                    "-r", config['rays_dir'] + "/" + r,
                     "-tmin", str(tmin),
                     "-tmax", str(tmax),
                     "-n", str(config['runs']),
                     "-d", str(config['dryruns']),
-                    "-o", resdir + "/" + name + ".fbuf"], stdout=out, stderr=err)
-                out.close()
-                err.close()
+                    "-o", resname], stdout=open(outname, "w"), stderr=open(errname, "w"))
 
-                remove_if_empty(resdir + "/" + name + ".out")
-                remove_if_empty(resdir + "/" + name + ".err")
-                if os.path.isfile(resdir + "/" + name + ".fbuf"):
-                    to_convert.append(resdir + "/" + name + ".fbuf")
+                remove_if_empty(errname)
+                remove_if_empty(outname)
+                if os.path.isfile(resname):
+                    to_convert.append((resname, width, height))
 
         # Convert .fbuf files to .png
-        for f in to_convert:
-            p = Process(target=convert_fbuf, args=(f, f[:-5] + ".png"))
+        for f, width, height in to_convert:
+            p = Process(target=convert_fbuf, args=(f, f[:-5] + ".png", width, height))
             p.start()
 
 def main():
     global config
 
     # Read configuration or generate config file if it doesn't exist
-    if os.path.isfile("benchmarks.conf"):
-        f = open("benchmarks.conf")
-        code = compile(f.read(), "benchmarks.conf", 'exec')
+    if os.path.isfile("benchmark.conf"):
+        f = open("benchmark.conf")
+        code = compile(f.read(), "benchmark.conf", 'exec')
         exec(code, config)
     else:
-        generate_config()
+        print("Running for the first time, configuration file benchmark.conf will be generated.")
+        f = open("benchmark.conf", "w")
+        f.write(default_config)
+        f.close()
         sys.exit()
 
     if not check_config():

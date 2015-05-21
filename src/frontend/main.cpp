@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
     parser.add_option<std::string>("accel", "a", "Sets the acceleration structure file name", accel_file, "input.bvh", "input.bvh");
     parser.add_option<std::string>("rays", "r", "Sets the input ray distribution file name", rays_file, "input.rays", "input.rays");
     parser.add_option<int>("times", "n", "Sets the iteration count", times, 100, "count");
-    parser.add_option<int>("warmup", "d", "Sets the number of warmup iterations", warmup, 10, "count");
+    parser.add_option<int>("warmup", "d", "Sets the number of dry runs", warmup, 10, "count");
     parser.add_option<std::string>("output", "o", "Sets the output file name", output, "output.fbuf", "output.fbuf");
     parser.add_option<float>("tmin", "tmin", "Sets the minimum t parameter along the rays", tmin, 0.0f, "t");
     parser.add_option<float>("tmax", "tmax", "Sets the maximum t parameter along the rays", tmax, 1e9f, "t");
