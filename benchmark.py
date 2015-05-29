@@ -3,6 +3,7 @@ import subprocess
 import os
 import getopt
 import sys
+import time
 from multiprocessing import Process
 
 # Benchmark configuration is in benchmarks.conf
@@ -15,7 +16,11 @@ ref_intr = ''                             # Reference intersection program
 bvh_io = ''                               # BVH file generator
 gen_prim = 'tools/GenPrimary/GenPrimary'  # Primary rays generator
 gen_shadow = 'tools/GenShadow/GenShadow'  # Shadow rays generator
+gen_random = 'tools/GenRandom/GenRandom'  # Random rays generator
 fbuf2png = 'tools/FBufToPng/FBufToPng'    # FBUF to PNG converter
+
+# Generator tools options
+num_cores = 1           # Number of cores used when generating BVH and ray files
 
 # Directories
 obj_dir  = 'models'     # OBJ models directory
@@ -62,10 +67,14 @@ def check_config():
     if not check_var('runs') or not check_var('dryruns'):
         return False
 
-    if not var_file('ref_intr') or not var_file('bvh_io') or not var_file('gen_prim') or not var_file('gen_shadow') or not var_file('fbuf2png'):
-        return False
+    for f in ['ref_intr', 'bvh_io', 'gen_prim', 'gen_shadow', 'gen_random', 'fbuf2png']:
+        if not var_file(f):
+            return False
 
     if not var_path('obj_dir') or not var_path('bvh_dir') or not var_path('rays_dir') or not var_path('res_dir'):
+        return False
+
+    if not check_var('num_cores'):
         return False
 
     if not check_var('benches'):
@@ -81,56 +90,85 @@ def check_config():
 
     return True
 
-def generate_scenes():
-    for s in config['scenes']:
-        print("* Scene: " + s)
-        obj_file = config['obj_dir'] + "/" + s[:-3] + "obj"
+def spawn_silent(msg, params):
+    def call_silent(msg, params):
+        if msg != "":
+            print(msg)
         devnull = open(os.devnull, "w")
-        subprocess.call([config['bvh_io'], obj_file, config['bvh_dir'] + "/" + s], stdout=devnull, stderr=devnull)
+        subprocess.call(params)#, stdout=devnull, stderr=devnull)
+        devnull.close()
+
+    p = Process(target=call_silent, args=(msg, params))
+    return p
+
+def run_parallel(p):
+    n = config['num_cores']
+    for i in range(0, len(p), n):
+        for q in p[i:i + n]:
+            q.start()
+        for q in p[i:i + n]:
+            q.join()
+
+def generate_scenes():
+    p = []
+    for s in config['scenes']:
+        obj_file = config['obj_dir'] + "/" + s[:-3] + "obj"
+        p.append(spawn_silent("* Scene: " + s, [config['bvh_io'], obj_file, config['bvh_dir'] + "/" + s]))
+    run_parallel(p)
 
 def generate_distribs():
     devnull = open(os.devnull, "w")
+
+    p = []
     # Generate primary ray distributions
     for name, viewport in config['rays'].items():
-        if 'generate' not in viewport:
-            continue
         if viewport['generate'] == 'primary':
-            print("* Primary rays: " + name)
             eye = viewport['eye']
             ctr = viewport['center']
             up  = viewport['up']
-            subprocess.call([config['gen_prim'],
+            p.append(spawn_silent("* Primary rays: " + name, [config['gen_prim'],
                 "-e", "(" + str(eye[0]) + ") (" + str(eye[1]) + ") (" + str(eye[2]) + ")",
                 "-c", "(" + str(ctr[0]) + ") (" + str(ctr[1]) + ") (" + str(ctr[2]) + ")",
                 "-u", "(" + str(up[0])  + ") (" + str(up[1])  + ") (" + str(up[2])  + ")",
                 "-f", str(viewport['fov']),
                 "-w", str(viewport['width']),
                 "-h", str(viewport['height']),
-                config['rays_dir'] + "/" + name])
+                config['rays_dir'] + "/" + name]))
+        elif viewport['generate'] == 'random':
+            p.append(spawn_silent("* Random rays: " + name, [config['gen_random'],
+                "-b", config['bvh_dir'] + "/" + viewport['scene'],
+                "-s", str(int(time.time())),
+                "-w", str(viewport['width']),
+                "-h", str(viewport['height']),
+                config['rays_dir'] + "/" + name]))
+    run_parallel(p)
+
+    p = []
+    q = []
     # Generate shadow ray distributions
     for name, viewport in config['rays'].items():
-        if 'generate' not in viewport:
-            continue
         if viewport['generate'] == 'shadow':
-            print("* Shadow rays: " + name)
             fbuf = config['rays_dir'] + "/" + name + ".fbuf"
             primary = config['rays'][viewport['primary']]
             light = viewport['light']
             # Intersect the scene to generate the primary ray .fbuf file
-            subprocess.call([config['ref_intr'],
+            p.append(spawn_silent("* Finding intersections: " + name, [config['ref_intr'],
                 "-a", config['bvh_dir'] + "/" + viewport['scene'],
                 "-r", config['rays_dir'] + "/" + viewport['primary'],
                 "-tmin", str(primary['tmin']),
                 "-tmax", str(primary['tmax']),
                 "-n", "1",
                 "-d", "0",
-                "-o", fbuf], stdout=devnull, stderr=devnull)
+                "-o", fbuf]))
             # Generate the shadow ray distribution from the result
-            subprocess.call([config['gen_shadow'],
+            q.append(spawn_silent("* Shadow rays: " + name, [config['gen_shadow'],
                 "-p", config['rays_dir'] + "/" + viewport['primary'],
                 "-d", fbuf,
                 "-l", "(" + str(light[0]) + ") (" + str(light[1]) + ") (" + str(light[2]) + ")",
-                config['rays_dir'] + "/" + name])
+                config['rays_dir'] + "/" + name]))
+
+    run_parallel(p)
+    run_parallel(q)
 
 def usage():
     print("usage: benchmark.py [options]\n"
@@ -165,8 +203,8 @@ def benchmark():
             for r in rays:
                 name = remove_suffix(s, ".bvh") + "-" + remove_suffix(r, ".rays")
                 print("   scene: " + s + ", distrib: " + r)
-                errname = resdir + "/" + name + ".out"
-                outname = resdir + "/" + name + ".err"
+                errname = resdir + "/" + name + ".err"
+                outname = resdir + "/" + name + ".out"
                 resname = resdir + "/" + name + ".fbuf"
                 tmin = config['rays'][r]['tmin']
                 tmax = config['rays'][r]['tmax']

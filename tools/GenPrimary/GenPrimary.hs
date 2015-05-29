@@ -107,7 +107,7 @@ options =
     [ Option ['e'] ["eye"]    (ReqArg (\str -> EyePos (readV3 str))    "eye-pos")    "Sets the eye position"
     , Option ['c'] ["ctr"]    (ReqArg (\str -> CenterPos (readV3 str)) "center-pos") "Sets the center position"
     , Option ['u'] ["up"]     (ReqArg (\str -> UpVector (readV3 str))  "up-vec")     "Sets the up vector"
-    , Option ['f'] ["fov"]    (ReqArg (\str -> Fov (read str))       "fov")        "Sets the field of view"
-    , Option ['w'] ["width"]  (ReqArg (\str -> Width (read str))     "width")      "Sets the viewport width"
-    , Option ['h'] ["height"] (ReqArg (\str -> Height (read str))    "height")     "Sets the viewport height"
+    , Option ['f'] ["fov"]    (ReqArg (\str -> Fov (read str))         "fov")        "Sets the field of view"
+    , Option ['w'] ["width"]  (ReqArg (\str -> Width (read str))       "width")      "Sets the viewport width"
+    , Option ['h'] ["height"] (ReqArg (\str -> Height (read str))      "height")     "Sets the viewport height"
     ]
