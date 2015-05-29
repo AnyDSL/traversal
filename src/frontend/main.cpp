@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    Ray* rays;
+    Rays* rays;
     int ray_count;
     if (!load_rays(rays_file, rays, ray_count, tmin, tmax)) {
         std::cerr << "Cannot load ray distribution file." << std::endl;
@@ -54,21 +54,39 @@ int main(int argc, char** argv) {
 
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    Ray* ray_buffer = thorin_new<Ray>(ray_count);
-    memcpy(ray_buffer, rays, sizeof(Ray) * ray_count);
+    std::function<void (Rays*)> reset_rays;
+    {
+        int* tri = thorin_new<int>(ray_count);
+        float* tmax = thorin_new<float>(ray_count);
+        float* tmin = thorin_new<float>(ray_count);
+        float* u = thorin_new<float>(ray_count);
+        float* v = thorin_new<float>(ray_count);
+        memcpy(tri, rays->tri, sizeof(int) * ray_count);
+        memcpy(tmax, rays->tmax, sizeof(float) * ray_count);
+        memcpy(tmin, rays->tmin, sizeof(float) * ray_count);
+        memcpy(u, rays->u, sizeof(float) * ray_count);
+        memcpy(v, rays->v, sizeof(float) * ray_count);
+        reset_rays = [=] (Rays* rays) {
+            memcpy(rays->tri, tri, sizeof(int) * ray_count);
+            memcpy(rays->tmax, tmax, sizeof(float) * ray_count);
+            memcpy(rays->tmin, tmin, sizeof(float) * ray_count);
+            memcpy(rays->u, u, sizeof(float) * ray_count);
+            memcpy(rays->v, v, sizeof(float) * ray_count);
+        };
+    }
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
-        memcpy(ray_buffer, rays, sizeof(Ray) * ray_count);
-        traverse_accel(accel, ray_buffer, ray_count);
+        reset_rays(rays);
+        traverse_accel(accel, rays, ray_count);
     }
 
     // Compute traversal time
     std::chrono::high_resolution_clock::duration time(0);
     for (int i = 0; i < times; i++) {
-        memcpy(ray_buffer, rays, sizeof(Ray) * ray_count);
+        reset_rays(rays);
         auto t0 = std::chrono::high_resolution_clock::now();
-        traverse_accel(accel, ray_buffer, ray_count);
+        traverse_accel(accel, rays, ray_count);
         auto t1 = std::chrono::high_resolution_clock::now();
         time += t1 - t0;
     }
@@ -79,16 +97,14 @@ int main(int argc, char** argv) {
     
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
-        if (ray_buffer[i].tri >= 0) {
+        if (rays->tri[i] >= 0) {
             intr++;
         }
     }
     std::cout << intr << " intersection(s)." << std::endl;
 
     std::ofstream out(output, std::ofstream::binary);
-    for (int i = 0; i < ray_count; i++) {
-        out.write((char*)&ray_buffer[i].tmax, sizeof(float));
-    }
+    out.write((char*)rays->tmax, sizeof(float) * ray_count);
 
     return EXIT_SUCCESS;
 }

@@ -12,43 +12,40 @@ struct RayPacket {
 
 static postpone_count = 0;
 
-fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayPacket) -> ()) -> () {
+fn iterate_rays(mut rays: Rays, i: i32, j: i32, body: fn(&RayPacket) -> ()) -> () {
     assert(|| {(j - i) % vector_size == 0}, "iterate_rays : invalid number of rays");
 
     for k in range_step(i, j, vector_size) {
         // Build a packet of rays of size 8 from the array
         let mut packet : RayPacket;
 
-        for c in @range(0, vector_size) {
-            set_real(&packet.org.x, c, rays(k + c).org(0));
-            set_real(&packet.org.y, c, rays(k + c).org(1));
-            set_real(&packet.org.z, c, rays(k + c).org(2));
+        packet.org.x = load_real(&rays.org_x(k));
+        packet.org.y = load_real(&rays.org_y(k));
+        packet.org.z = load_real(&rays.org_z(k));
 
-            set_real(&packet.dir.x, c, rays(k + c).dir(0));
-            set_real(&packet.dir.y, c, rays(k + c).dir(1));
-            set_real(&packet.dir.z, c, rays(k + c).dir(2));
-
-            set_id(&packet.tri, c, rays(k + c).tri);
-            set_real(&packet.tmin, c, rays(k + c).tmin);
-            set_real(&packet.tmax, c, rays(k + c).tmax);
-            set_real(&packet.u, c, rays(k + c).u);
-            set_real(&packet.v, c, rays(k + c).v);
-        }
+        packet.dir.x = load_real(&rays.dir_x(k));
+        packet.dir.y = load_real(&rays.dir_y(k));
+        packet.dir.z = load_real(&rays.dir_z(k));
 
         packet.inv.x = real(1.0f) / packet.dir.x;
         packet.inv.y = real(1.0f) / packet.dir.y;
         packet.inv.z = real(1.0f) / packet.dir.z;
 
+        packet.tri = load_id(&rays.tri(k));
+
+        packet.tmin = load_real(&rays.tmin(k));
+        packet.tmax = load_real(&rays.tmax(k));
+        packet.u = load_real(&rays.u(k));
+        packet.v = load_real(&rays.v(k));
+
         // Traverse the BVH
         body(&packet);
 
         // Write results back to the array
-        for c in range(0, vector_size) {
-            rays(k + c).tri = get_id(packet.tri, c);
-            rays(k + c).tmax = get_real(packet.tmax, c);
-            rays(k + c).u = get_real(packet.u, c);
-            rays(k + c).v = get_real(packet.v, c);
-        }
+        store_id(&rays.tri(k), packet.tri);
+        store_real(&rays.tmax(k), packet.tmax);
+        store_real(&rays.u(k), packet.u);
+        store_real(&rays.v(k), packet.v);
     }
 }
 
@@ -58,10 +55,10 @@ fn intersect_leaf(mut packet: &RayPacket, accel: Accel, node: i32) -> () {
         intersect_ray_tri(packet.org, packet.dir, v0, v1, v2,
             |t, u, v, intr| {
                 let mask = intr & t < packet.tmax & t > packet.tmin;
-                id_mask_store(mask, id(tri), &packet.tri);
-                real_mask_store(mask, t, &packet.tmax);
-                real_mask_store(mask, u, &packet.u);
-                real_mask_store(mask, v, &packet.v);
+                mask_store_id(mask, id(tri), &packet.tri);
+                mask_store_real(mask, t, &packet.tmax);
+                mask_store_real(mask, u, &packet.u);
+                mask_store_real(mask, v, &packet.v);
                 continue()
             })
     }

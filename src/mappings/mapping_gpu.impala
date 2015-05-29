@@ -13,35 +13,48 @@ struct RayData {
     v: f32
 }
 
-fn iterate_rays(mut rays: &[Ray], i: i32, j: i32, body: fn(&RayData) -> ()) -> () {
+fn iterate_rays(rays: Rays, i: i32, j: i32, body: fn(&RayData) -> ()) -> () {
     assert(|| {(j - i) / block_size == 1}, "iterate_rays : invalid number of rays");
 
     let dev = acc_dev();
     let grid = (j - i, 1, 1);
     let block = (block_size, 1, 1);
 
+    let org_x = rays.org_x;
+    let org_y = rays.org_y;
+    let org_z = rays.org_z;
+    let dir_x = rays.dir_x;
+    let dir_y = rays.dir_y;
+    let dir_z = rays.dir_z;
+
+    let mut tri = rays.tri;
+    let tmin = rays.tmin;
+    let mut tmax = rays.tmax;
+    let mut u = rays.u;
+    let mut v = rays.v;
+
     acc(dev, grid, block, || @{
         let id = acc_gidx();
 
         let mut ray = RayData {
-            org: Vec3 { x: rays(id).org(0), y: rays(id).org(1), z: rays(id).org(2) },
-            dir: Vec3 { x: rays(id).dir(0), y: rays(id).dir(1), z: rays(id).dir(2) },
-            inv: Vec3 { x: 1.0f / rays(id).dir(0),
-                        y: 1.0f / rays(id).dir(1),
-                        z: 1.0f / rays(id).dir(2) },
-            tri: rays(id).tri,
-            tmin: rays(id).tmin,
-            tmax: rays(id).tmax,
-            u: rays(id).u,
-            v: rays(id).v
+            org: Vec3 { x: org_x(id), y: org_y(id), z: org_z(id) },
+            dir: Vec3 { x: dir_x(id), y: dir_y(id), z: dir_z(id) },
+            inv: Vec3 { x: 1.0f / dir_x(id),
+                        y: 1.0f / dir_y(id),
+                        z: 1.0f / dir_z(id) },
+            tri: tri(id),
+            tmin: tmin(id),
+            tmax: tmax(id),
+            u: u(id),
+            v: v(id)
         };
 
-        body(&ray);
+        @body(&ray);
 
-        rays(id).tri = ray.tri;
-        rays(id).tmax = ray.tmax;
-        rays(id).u = ray.u;
-        rays(id).v = ray.v;
+        tri(id) = ray.tri;
+        tmax(id) = ray.tmax;
+        u(id) = ray.u;
+        v(id) = ray.v;
     })
 }
 

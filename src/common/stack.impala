@@ -4,10 +4,9 @@ struct Stack {
 }
 
 fn empty_stack() -> Stack {
-    Stack {
-        data: [0, ..32],
-        id: -1
-    }
+    let mut stack : Stack;
+    stack.id = -1;
+    stack
 }
 
 fn stack_size(stack: &Stack) -> i32 {

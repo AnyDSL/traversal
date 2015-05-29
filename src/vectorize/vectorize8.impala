@@ -6,24 +6,24 @@ fn id(i: i32) -> Id {
     simd[i, i, i, i, i, i, i, i]
 }
 
-fn set_id(mut id: &Id, i: i32, j: i32) -> () {
-    id(i) = j
+fn load_id(i: &i32) -> Id {
+    *(i as &Id)
 }
 
-fn get_id(id: Id, i: i32) -> i32 {
-    id(i)
+fn store_id(mut i: &i32, id: Id) -> () {
+    *(i as &Id) = id
 }
 
 fn real(f: f32) -> Real {
     simd[f, f, f, f, f, f, f, f]
 }
 
-fn set_real(mut r: &Real, i: i32, f: f32) -> () {
-    r(i) = f;
+fn load_real(f: &f32) -> Real {
+    *(f as &Real)
 }
 
-fn get_real(r: Real, i: i32) -> f32 {
-    r(i)
+fn store_real(mut f: &f32, r: Real) -> () {
+    *(f as &Real) = r
 }
 
 fn any(i: Intr) -> bool {
@@ -43,11 +43,11 @@ fn ballot(i: Intr) -> bool {
     j(0) + j(1) + j(2) + j(3) + j(4) + j(5) + j(6) + j(7) >= 4
 }
 
-fn id_mask_store(i: Intr, src: Id, mut dst: &Id) -> () {
+fn mask_store_id(i: Intr, src: Id, mut dst: &Id) -> () {
     *dst = select8i32(i, src, *dst);
 }
 
-fn real_mask_store(i: Intr, src: Real, mut dst: &Real) -> () {
+fn mask_store_real(i: Intr, src: Real, mut dst: &Real) -> () {
     *dst = select8f32(i, src, *dst);
 }
 

@@ -1,16 +1,23 @@
 // Core part of the traversal algorithm
-struct Ray {
-    org: [f32 * 3],
-    dir: [f32 * 3],
-    tri: i32,
-    tmin: f32,
-    tmax: f32,
-    u: f32,
-    v: f32
+struct Rays {
+    org_x: &[f32],
+    org_y: &[f32],
+    org_z: &[f32],
+
+    dir_x: &[f32],
+    dir_y: &[f32],
+    dir_z: &[f32],
+
+    tri: &[i32],
+    tmin: &[f32],
+    tmax: &[f32],
+    u: &[f32],
+    v: &[f32]
 }
 
-extern fn traverse_accel(accel_ptr: &Accel, rays: &[Ray], ray_count: i32) -> () @{
+extern fn traverse_accel(accel_ptr: &Accel, rays_ptr: &Rays, ray_count: i32) -> () @{
     let accel = *accel_ptr;
+    let rays = *rays_ptr;
 
     for ray in iterate_rays(rays, 0, ray_count) @{
         let mut stack = empty_stack();
