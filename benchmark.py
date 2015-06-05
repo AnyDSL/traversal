@@ -222,12 +222,10 @@ def benchmark():
                 remove_if_empty(errname)
                 remove_if_empty(outname)
                 if os.path.isfile(resname):
-                    to_convert.append((resname, width, height))
+                    to_convert.append(spawn_silent("", [config['fbuf2png'], resname, resname[:-5] + ".png", "-w", str(width), "-h", str(height)]))
 
         # Convert .fbuf files to .png
-        for f, width, height in to_convert:
-            p = Process(target=convert_fbuf, args=(f, f[:-5] + ".png", width, height))
-            p.start()
+        run_parallel(to_convert)
 
 def main():
     global config
