@@ -16,7 +16,7 @@ endif()
 find_package(THORIN REQUIRED)
 
 include(${THORIN_RUNTIME_DIR}/cmake/ThorinRuntime.cmake)
-include_directories(${THORIN_RUNTIME_INCLUDE_DIR})
+include_directories(${THORIN_RUNTIME_INCLUDE_DIRS})
 
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(BACKEND "cpu")
