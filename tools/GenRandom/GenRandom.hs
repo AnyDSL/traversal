@@ -33,9 +33,9 @@ main = do
     bounds <- computeBounds (bvhFile s)
     let gen = mkStdGen (seed s)
     let generateRays g i = do
-        put r
-        return g'
-        where (r, g') = generateRandom g bounds
+         put r
+         return g'
+         where (r, g') = generateRandom g bounds
     let bytes = runPut $ foldM_ generateRays gen [1.. width s * height s]
     BS.writeFile output bytes
 

@@ -27,11 +27,11 @@ main = do
     let s = programSettings flags
     (rays, rayCount) <- readVector (primaryFile s) get (6 * 4)
     (depth, _) <- readVector (depthFile s) getFloat32le 4
-    let bytes = runPut $ forM_ [0.. rayCount - 1] (\i -> do
-        let r = rays V.! fromIntegral i
-        let d = depth V.! fromIntegral i
-        put $ generateShadow r d (lightPos s))
-    BS.writeFile output bytes
+    let bytes = forM_ [0.. rayCount - 1] (\i -> do
+         let r = rays V.! fromIntegral i
+             d = depth V.! fromIntegral i
+         put $ generateShadow r d (lightPos s))
+    BS.writeFile output $ runPut bytes
 
 generateShadow (Ray o d) t l = Ray p (l - p)
     where p = o ^+^ d ^* t

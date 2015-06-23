@@ -13,10 +13,10 @@ main = do
     let s = programSettings flags
     let cam = generateCamera s
     let bytes = runPut $ forM_ [0.. height s - 1] (\i -> do
-        forM_ [0.. width s - 1] (\j -> do
-            let (x, y) = (fromIntegral j / fromIntegral (width s - 1),
-                          fromIntegral i / fromIntegral (height s - 1)) :: (Float, Float)
-            put $ generatePrimary (x, y) cam))
+         forM_ [0.. width s - 1] (\j -> do
+             let (x, y) = (fromIntegral j / fromIntegral (width s - 1),
+                           fromIntegral i / fromIntegral (height s - 1)) :: (Float, Float)
+             put $ generatePrimary (x, y) cam))
     BS.writeFile output bytes
 
 data Ray = Ray { org :: V3 Float, dir :: V3 Float } deriving Show

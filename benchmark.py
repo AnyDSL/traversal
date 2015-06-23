@@ -4,23 +4,23 @@ import os
 import getopt
 import sys
 import time
-from multiprocessing import Process
+import multiprocessing
 
 # Benchmark configuration is in benchmarks.conf
 config = {}
 
-default_config = """ # Configuration file for the traversal benchmark
+default_config = """# Configuration file for the traversal benchmark
 
 # Tools
-ref_intr = ''                             # Reference intersection program
-bvh_io = ''                               # BVH file generator
-gen_prim = 'tools/GenPrimary/GenPrimary'  # Primary rays generator
-gen_shadow = 'tools/GenShadow/GenShadow'  # Shadow rays generator
-gen_random = 'tools/GenRandom/GenRandom'  # Random rays generator
-fbuf2png = 'tools/FBufToPng/FBufToPng'    # FBUF to PNG converter
+ref_intr = ''                                        # Reference intersection program
+bvh_io = ''                                          # BVH file generator
+gen_prim = 'tools/dist/build/GenPrimary/GenPrimary'  # Primary rays generator
+gen_shadow = 'tools/dist/build/GenShadow/GenShadow'  # Shadow rays generator
+gen_random = 'tools/dist/build/GenRandom/GenRandom'  # Random rays generator
+fbuf2png = 'tools/dist/build/FBufToPng/FBufToPng'    # FBUF to PNG converter
 
 # Generator tools options
-num_cores = 1           # Number of cores used when generating BVH and ray files
+num_cores = """ + str(multiprocessing.cpu_count()) + """           # Number of cores used when generating BVH and ray files
 
 # Directories
 obj_dir  = 'models'     # OBJ models directory
@@ -98,7 +98,7 @@ def spawn_silent(msg, params):
         subprocess.call(params)#, stdout=devnull, stderr=devnull)
         devnull.close()
 
-    p = Process(target=call_silent, args=(msg, params))
+    p = multiprocessing.Process(target=call_silent, args=(msg, params))
     return p
 
 def run_parallel(p):
