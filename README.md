@@ -19,4 +19,5 @@ Run it with -h to get the list of options.
 ### Tools ###
 
 This repository also includes some tools to generate ray distributions for primary rays, and to convert the output
-of the frontend into a PNG image. They are written in Haskell, and require GHC and additional packages.
+of the frontend into a PNG image. They are written in Haskell, and require GHC and additional packages. Run `cabal
+configure/build` in the tools directory.
