@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <functional>
 #include "options.h"
 #include "interface.h"
 #include "loaders.h"
