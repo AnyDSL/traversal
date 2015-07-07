@@ -37,27 +37,18 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, v0: Vec3, v1: Vec3, v2: Vec3, intr: f
 }
 
 // SLABS ray box intersection test
-fn intersect_ray_box(org: Vec3, inv: Vec3, min: Vec3, max: Vec3, intr: fn (Real, Real, Intr), nointr: fn()) {
+fn intersect_ray_box(org: Vec3, inv: Vec3, min: Vec3, max: Vec3, tmin: Real, tmax: Real, intr: fn (Real, Real, Intr), nointr: fn()) {
     let tmin_x = (min.x - org.x) * inv.x;
     let tmax_x = (max.x - org.x) * inv.x;
-
-    let t0_x = min_real(tmin_x, tmax_x);
-    let t1_x = max_real(tmin_x, tmax_x);
 
     let tmin_y = (min.y - org.y) * inv.y;
     let tmax_y = (max.y - org.y) * inv.y;
 
-    let t0_y = min_real(tmin_y, tmax_y);
-    let t1_y = max_real(tmin_y, tmax_y);
-
     let tmin_z = (min.z - org.z) * inv.z;
     let tmax_z = (max.z - org.z) * inv.z;
 
-    let t0_z = min_real(tmin_z, tmax_z);
-    let t1_z = max_real(tmin_z, tmax_z);
-
-    let t0 = max_real(t0_x, max_real(t0_y, t0_z));
-    let t1 = min_real(t1_x, min_real(t1_y, t1_z));
+    let t0 = fmax_fmax(fmin(tmin_x, tmax_x), fmin(tmin_y, tmax_y), fmin_fmax(tmin_z, tmax_z, tmin));
+    let t1 = fmin_fmin(fmax(tmin_x, tmax_x), fmax(tmin_y, tmax_y), fmax_fmin(tmin_z, tmax_z, tmax));
 
     let mask = t0 <= t1;
     if any(mask) {

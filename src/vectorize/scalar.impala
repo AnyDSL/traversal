@@ -46,11 +46,11 @@ fn mask_store_real(i: Intr, src: Real, mut dst: &Real) -> () {
     if i { *dst = src }
 }
 
-fn min_real(a: Real, b: Real)-> Real @{
+fn fmin(a: Real, b: Real)-> Real @{
     if a < b { a } else { b }
 }
 
-fn max_real(a: Real, b: Real)-> Real @{
+fn fmax(a: Real, b: Real)-> Real @{
     if a > b { a } else { b }
 }
 

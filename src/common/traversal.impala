@@ -1,58 +1,202 @@
-// Core part of the traversal algorithm
-struct Rays {
-    org_x: &[f32],
-    org_y: &[f32],
-    org_z: &[f32],
+type Vec4 = [f32 * 4];
+type Vec3 = [f32 * 3];
 
-    dir_x: &[f32],
-    dir_y: &[f32],
-    dir_z: &[f32],
-
-    tri: &[i32],
-    tmin: &[f32],
-    tmax: &[f32],
-    u: &[f32],
-    v: &[f32]
+struct BBox {
+    min: Vec3,
+    max: Vec3
 }
 
-extern fn traverse_accel(accel_ptr: &Accel, rays_ptr: &Rays, ray_count: i32) -> () @{
-    let accel = *accel_ptr;
-    let rays = *rays_ptr;
+struct Node {
+    left_bb: BBox,
+    right_bb: BBox,
+    right: i32,
+    left: i32,
+    pad0: i32,
+    pad1: i32
+}
 
-    for ray in iterate_rays(rays, 0, ray_count) @{
-        let mut stack = empty_stack();
-        let mut postponed = empty_stack();
+struct Hit {
+    tri_id: i32,
+    tmax: f32,
+    pad0: i32,
+    pad1: i32
+}
 
-        push_node(&stack, root_node(accel));
-        while !is_empty(&stack) {
-            let id = pop_node(&stack);
+static block_w = 32;
+static block_h = 4;
+static sentinel = 0x76543210;
 
-            if @is_leaf(accel, id) {
-                if postpone_count > 0 @{
-                    push_node(&postponed, id)
-                } else @{
-                    intersect_leaf(ray, accel, id)
-                }
-            } else @{
-                intersect_node(ray, accel, id, &stack);
-            }
+extern "C" {
+    fn fmin_fmin(f32, f32, f32) -> f32;
+    fn fmax_fmax(f32, f32, f32) -> f32;
+    fn fmin_fmax(f32, f32, f32) -> f32;
+    fn fmax_fmin(f32, f32, f32) -> f32;
 
-            if postpone_count > 0 @{
-                if stack_size(&postponed) >= postpone_count @{
-                    while !is_empty(&postponed) @{
-                        let id = pop_node(&postponed);
-                        intersect_leaf(ray, accel, id)
+    fn magic_node_id(&[Node]) -> &[Node];
+    fn magic_ray_id(&[Vec4]) -> &[Vec4];
+    fn magic_tri_id(&[Vec3]) -> &[Vec3];
+    fn magic_hit_id(&[Hit]) -> &[Hit];
+}
+
+fn fmax(a: f32, b: f32) -> f32 {
+     if a > b {a} else {b}  
+}
+
+fn fmin(a: f32, b: f32) -> f32 {
+     if a < b {a} else {b}  
+}
+
+fn span_begin(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32, g: f32) -> f32 {
+    fmax_fmax(fmin(a, b), fmin(c, d), fmin_fmax(e, f, g))
+}
+
+fn span_end(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32, g: f32) -> f32 {
+    fmin_fmin(fmax(a, b), fmax(c, d), fmax_fmin(e, f, g))
+}
+
+fn vec3_sub(a: Vec3, b: Vec3) -> Vec3 {
+    [a(0) - b(0), a(1) - b(1), a(2) - b(2)]
+}
+
+fn vec3_cross(a: Vec3, b: Vec3) -> Vec3 {
+    [a(1) * b(2) - a(2) * b(1),
+     a(2) * b(0) - a(0) * b(2),
+     a(0) * b(1) - a(1) * b(0)]
+}
+
+fn vec3_dot(a: Vec3, b: Vec3) -> f32 {
+    a(0) * b(0) + a(1) * b(1) + a(2) * b(2)
+}
+
+extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3], hits_ptr: &[Hit], ray_count: i32) -> () @{
+    let dev = acc_dev();
+    let grid = (ray_count / block_h, block_h, 1);
+    let block = (block_w, block_h, 1);
+
+    acc(dev, grid, block, || @{
+        let nodes = magic_node_id(nodes_ptr);
+        let rays = magic_ray_id(rays_ptr);
+        let tris = magic_tri_id(tris_ptr);
+        let mut hits = magic_hit_id(hits_ptr);
+
+        let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
+        if id <= ray_count {
+            // Initialize ray
+            let org_x = rays(id * 2)(0);
+            let org_y = rays(id * 2)(1);
+            let org_z = rays(id * 2)(2);
+            let tmin = rays(id * 2)(3);
+
+            let dir_x = rays(id * 2 + 1)(0);
+            let dir_y = rays(id * 2 + 1)(1);
+            let dir_z = rays(id * 2 + 1)(2);
+            let mut tmax = rays(id * 2 + 1)(3);
+
+            let idir_x = 1.0f / dir_x;
+            let idir_y = 1.0f / dir_y;
+            let idir_z = 1.0f / dir_z;
+
+            // Initialize stack
+            let mut stack : [i32 * 64];
+            let mut stack_id = 0;
+            stack(0) = sentinel;
+
+            let mut node_id = 0;
+            let mut tri_id = -1;
+
+            // Traversal loop
+            while (node_id as u32) < (sentinel as u32) {
+                // Load & intersect the node
+                let node = nodes(node_id);
+
+                let c0lox = (node.left_bb.min(0) - org_x) * idir_x;
+                let c0hix = (node.left_bb.max(0) - org_x) * idir_x;
+                let c0loy = (node.left_bb.min(1) - org_y) * idir_y;
+                let c0hiy = (node.left_bb.max(1) - org_y) * idir_y;
+                let c0loz = (node.left_bb.min(2) - org_z) * idir_z;
+                let c0hiz = (node.left_bb.max(2) - org_z) * idir_z;
+                let c0min = span_begin(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmin);
+                let c0max = span_end(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmax);
+
+                let c1lox = (node.right_bb.min(0) - org_x) * idir_x;
+                let c1hix = (node.right_bb.max(0) - org_x) * idir_x;
+                let c1loy = (node.right_bb.min(1) - org_y) * idir_y;
+                let c1hiy = (node.right_bb.max(1) - org_y) * idir_y;
+                let c1loz = (node.right_bb.min(2) - org_z) * idir_z;
+                let c1hiz = (node.right_bb.max(2) - org_z) * idir_z;
+                let c1min = span_begin(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmin);
+                let c1max = span_end(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmax);
+
+                let swp = c1min < c0min;
+                let tc0 = c0max >= c0min;
+                let tc1 = c1max >= c1min;
+
+                if !tc0 && !tc1 {
+                    // Pop from the stack
+                    node_id = stack(stack_id--);
+                } else {
+                    node_id = if tc0 { node.left } else { node.right };
+                    if tc0 && tc1 {
+                        stack(++stack_id) = if swp {
+                            node_id = node.right;
+                            node.left
+                        } else {
+                            node.right
+                        };
                     }
                 }
-            }
-        }
 
-        if postpone_count > 0 @{
-            while !is_empty(&postponed) @{
-                let id = pop_node(&postponed);
-                intersect_leaf(ray, accel, id)
+                // Intersect leaves
+                while node_id < 0 {
+                    let mut loop_id = !node_id;                
+                    while true {
+                        let v0 = tris(loop_id + 0);
+                        let v1 = tris(loop_id + 1);
+                        let v2 = tris(loop_id + 2);
+
+                        if v0(0) == -0.0f {
+                            break()
+                        }
+
+                        let e0 = vec3_sub(v1, v0);
+                        let e1 = vec3_sub(v2, v0);
+                        let dir = [dir_x, dir_y, dir_z];
+                        let pvec = vec3_cross(dir, e1);
+                        let det = vec3_dot(e0, pvec);
+                        let eps = 1e-4f;
+                        if det > -eps && det < eps {
+                            continue()
+                        }
+
+                        let idet = 1.0f / det;
+                        let org = [org_x, org_y, org_z];
+                        let tvec = vec3_sub(org, v0);
+                        let u = vec3_dot(tvec, pvec) * idet;
+                        if u >= 0.0f && u <= 1.0f {
+                            let qvec = vec3_cross(tvec, e0);                        
+                            let v = vec3_dot(qvec, dir) * idet;
+                            if v >= 0.0f && u + v <= 1.0f {
+                                let t = vec3_dot(e1, qvec) * idet;
+                                if t >= tmin && t <= tmax {
+                                    tmax = t;
+                                    tri_id = loop_id;
+                                }
+                            }
+                        }
+
+                        loop_id += 3;
+                    }
+
+                    // Pop node from the stack
+                    node_id = stack(stack_id--);
+                }
+            }
+
+            if tri_id >= 0 {
+                hits(id).tri_id = tri_id;
+                hits(id).tmax = tmax;
             }
         }
-    }
+    })
 }
 

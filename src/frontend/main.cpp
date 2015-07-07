@@ -40,13 +40,14 @@ int main(int argc, char** argv) {
 
     thorin_init();
 
-    Accel* accel;
-    if (!load_bvh(accel_file, accel)) {
+    Node* nodes;
+    Vec3* tris;
+    if (!load_bvh(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
     }
 
-    Rays* rays;
+    Ray* rays;
     int ray_count;
     if (!load_rays(rays_file, rays, ray_count, tmin, tmax)) {
         std::cerr << "Cannot load ray distribution file." << std::endl;
@@ -55,39 +56,26 @@ int main(int argc, char** argv) {
 
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    std::function<void (Rays*)> reset_rays;
-    {
-        int* tri = thorin_new<int>(ray_count);
-        float* tmax = thorin_new<float>(ray_count);
-        float* tmin = thorin_new<float>(ray_count);
-        float* u = thorin_new<float>(ray_count);
-        float* v = thorin_new<float>(ray_count);
-        memcpy(tri, rays->tri, sizeof(int) * ray_count);
-        memcpy(tmax, rays->tmax, sizeof(float) * ray_count);
-        memcpy(tmin, rays->tmin, sizeof(float) * ray_count);
-        memcpy(u, rays->u, sizeof(float) * ray_count);
-        memcpy(v, rays->v, sizeof(float) * ray_count);
-        reset_rays = [=] (Rays* rays) {
-            memcpy(rays->tri, tri, sizeof(int) * ray_count);
-            memcpy(rays->tmax, tmax, sizeof(float) * ray_count);
-            memcpy(rays->tmin, tmin, sizeof(float) * ray_count);
-            memcpy(rays->u, u, sizeof(float) * ray_count);
-            memcpy(rays->v, v, sizeof(float) * ray_count);
-        };
-    }
+    Hit* hits = thorin_new<Hit>(ray_count);
+    auto reset_hits = [&] () {
+        for (int i = 0; i < ray_count; i++) {
+            hits[i].tri_id = -1;
+            hits[i].tmax = rays[i * 2 + 1].w;        
+        }
+    };
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
-        reset_rays(rays);
-        traverse_accel(accel, rays, ray_count);
+        reset_hits();
+        traverse_accel(nodes, (float*)rays, (float*)tris, hits, ray_count);
     }
 
     // Compute traversal time
     std::chrono::high_resolution_clock::duration time(0);
     for (int i = 0; i < times; i++) {
-        reset_rays(rays);
+        reset_hits();
         auto t0 = std::chrono::high_resolution_clock::now();
-        traverse_accel(accel, rays, ray_count);
+        traverse_accel(nodes, (float*)rays, (float*)tris, hits, ray_count);
         auto t1 = std::chrono::high_resolution_clock::now();
         time += t1 - t0;
     }
@@ -98,14 +86,15 @@ int main(int argc, char** argv) {
     
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
-        if (rays->tri[i] >= 0) {
+        if (hits[i].tri_id >= 0) {
             intr++;
         }
     }
     std::cout << intr << " intersection(s)." << std::endl;
 
     std::ofstream out(output, std::ofstream::binary);
-    out.write((char*)rays->tmax, sizeof(float) * ray_count);
+    for (int i = 0; i < ray_count; i++)
+        out.write((char*)&hits[i].tmax, sizeof(float));
 
     return EXIT_SUCCESS;
 }

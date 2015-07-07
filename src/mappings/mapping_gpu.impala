@@ -13,6 +13,13 @@ struct RayData {
     v: f32
 }
 
+extern "C" {
+    fn fmin_fmin(f32, f32, f32) -> f32;
+    fn fmax_fmax(f32, f32, f32) -> f32;
+    fn fmin_fmax(f32, f32, f32) -> f32;
+    fn fmax_fmin(f32, f32, f32) -> f32;
+}
+
 fn iterate_rays(rays: Rays, i: i32, j: i32, body: fn(&RayData) -> ()) -> () {
     assert(|| {(j - i) / block_size == 1}, "iterate_rays : invalid number of rays");
 
@@ -61,7 +68,7 @@ fn iterate_rays(rays: Rays, i: i32, j: i32, body: fn(&RayData) -> ()) -> () {
 fn intersect_leaf(mut ray: &RayData, accel: Accel, node: i32) -> () @{
     for tri, v0, v1, v2 in iterate_triangles(accel, node) @{
         intersect_ray_tri(ray.org, ray.dir, v0, v1, v2, |t, u, v, mask| @{
-            if any(mask & t < ray.tmax & t > ray.tmin) @{
+            if any(mask & t < ray.tmax) @{
                 ray.tri = tri;
                 ray.tmax = t;
                 ray.u = u;
@@ -74,10 +81,8 @@ fn intersect_leaf(mut ray: &RayData, accel: Accel, node: i32) -> () @{
 
 fn intersect_node(ray: &RayData, accel: Accel, node: i32, stack: &Stack) -> () @{
     for min, max, push in iterate_children(accel, node, stack) @{
-        intersect_ray_box(ray.org, ray.inv, min, max, |t_entry, t_exit, mask| @{
-            if any(mask & ray.tmin < t_exit & ray.tmax > t_entry) @{
-                push(t_entry)
-            }
+        intersect_ray_box(ray.org, ray.inv, min, max, ray.tmin, ray.tmax, |t_entry, t_exit, mask| @{
+            push(t_entry);
             continue()
         })
     }
