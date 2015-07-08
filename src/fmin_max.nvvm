@@ -1,0 +1,36 @@
+define float @fmax_fmax(float %a, float %b, float %c) {
+    %1 = bitcast float %a to i32
+    %2 = bitcast float %b to i32
+    %3 = bitcast float %c to i32
+    %4 = call i32 asm "vmax.s32.s32.s32.max $0, $1, $2, $3;", "=r, r, r, r" (i32 %1, i32 %2, i32 %3)
+    %5 = bitcast i32 %4 to float
+    ret float %5
+}
+
+define float @fmin_fmin(float %a, float %b, float %c) {
+    %1 = bitcast float %a to i32
+    %2 = bitcast float %b to i32
+    %3 = bitcast float %c to i32
+    %4 = call i32 asm "vmin.s32.s32.s32.min $0, $1, $2, $3;", "=r, r, r, r" (i32 %1, i32 %2, i32 %3)
+    %5 = bitcast i32 %4 to float
+    ret float %5
+}
+
+define float @fmin_fmax(float %a, float %b, float %c) {
+    %1 = bitcast float %a to i32
+    %2 = bitcast float %b to i32
+    %3 = bitcast float %c to i32
+    %4 = call i32 asm "vmin.s32.s32.s32.max $0, $1, $2, $3;", "=r, r, r, r" (i32 %1, i32 %2, i32 %3)
+    %5 = bitcast i32 %4 to float
+    ret float %5
+}
+
+define float @fmax_fmin(float %a, float %b, float %c) {
+    %1 = bitcast float %a to i32
+    %2 = bitcast float %b to i32
+    %3 = bitcast float %c to i32
+    %4 = call i32 asm "vmax.s32.s32.s32.min $0, $1, $2, $3;", "=r, r, r, r" (i32 %1, i32 %2, i32 %3)
+    %5 = bitcast i32 %4 to float
+    ret float %5
+}
+
