@@ -1,5 +1,15 @@
-type Vec4 = [f32 * 4];
-type Vec3 = [f32 * 3];
+struct Ray {
+    org: Vec3,
+    tmin: f32,
+    dir: Vec3,
+    tmax: f32
+}
+
+struct Vec3 {
+    x: f32,
+    y: f32,
+    z: f32
+}
 
 struct BBox {
     min: Vec3,
@@ -33,7 +43,7 @@ extern "C" {
     fn fmax_fmin(f32, f32, f32) -> f32;
 
     fn magic_node_id(&[Node]) -> &[Node];
-    fn magic_ray_id(&[Vec4]) -> &[Vec4];
+    fn magic_ray_id(&[Ray]) -> &[Ray];
     fn magic_tri_id(&[Vec3]) -> &[Vec3];
     fn magic_hit_id(&[Hit]) -> &[Hit];
 }
@@ -54,21 +64,29 @@ fn span_end(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32, g: f32) -> f32 {
     fmin_fmin(fmax(a, b), fmax(c, d), fmax_fmin(e, f, g))
 }
 
+fn vec3(x: f32, y: f32, z: f32) -> Vec3 {
+    Vec3 {
+        x: x,
+        y: y,
+        z: z
+    }
+}
+
 fn vec3_sub(a: Vec3, b: Vec3) -> Vec3 {
-    [a(0) - b(0), a(1) - b(1), a(2) - b(2)]
+    vec3(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
 fn vec3_cross(a: Vec3, b: Vec3) -> Vec3 {
-    [a(1) * b(2) - a(2) * b(1),
-     a(2) * b(0) - a(0) * b(2),
-     a(0) * b(1) - a(1) * b(0)]
+     vec3(a.y * b.z - a.z * b.y,
+          a.z * b.x - a.x * b.z,
+          a.x * b.y - a.y * b.x)
 }
 
 fn vec3_dot(a: Vec3, b: Vec3) -> f32 {
-    a(0) * b(0) + a(1) * b(1) + a(2) * b(2)
+    a.x * b.x + a.y * b.y + a.z * b.z
 }
 
-extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3], hits_ptr: &[Hit], ray_count: i32) -> () @{
+extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec3], hits_ptr: &[Hit], ray_count: i32) -> () @{
     let dev = acc_dev();
     let grid = (ray_count / block_h, block_h, 1);
     let block = (block_w, block_h, 1);
@@ -82,15 +100,15 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3
         let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
         if id <= ray_count {
             // Initialize ray
-            let org_x = rays(id * 2)(0);
-            let org_y = rays(id * 2)(1);
-            let org_z = rays(id * 2)(2);
-            let tmin = rays(id * 2)(3);
+            let org_x = rays(id).org.x;
+            let org_y = rays(id).org.y;
+            let org_z = rays(id).org.z;
+            let tmin = rays(id).tmin;
 
-            let dir_x = rays(id * 2 + 1)(0);
-            let dir_y = rays(id * 2 + 1)(1);
-            let dir_z = rays(id * 2 + 1)(2);
-            let mut tmax = rays(id * 2 + 1)(3);
+            let dir_x = rays(id).dir.x;
+            let dir_y = rays(id).dir.y;
+            let dir_z = rays(id).dir.z;
+            let mut tmax = rays(id).tmax;
 
             let idir_x = 1.0f / dir_x;
             let idir_y = 1.0f / dir_y;
@@ -109,21 +127,21 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3
                 // Load & intersect the node
                 let node = nodes(node_id);
 
-                let c0lox = (node.left_bb.min(0) - org_x) * idir_x;
-                let c0hix = (node.left_bb.max(0) - org_x) * idir_x;
-                let c0loy = (node.left_bb.min(1) - org_y) * idir_y;
-                let c0hiy = (node.left_bb.max(1) - org_y) * idir_y;
-                let c0loz = (node.left_bb.min(2) - org_z) * idir_z;
-                let c0hiz = (node.left_bb.max(2) - org_z) * idir_z;
+                let c0lox = (node.left_bb.min.x - org_x) * idir_x;
+                let c0hix = (node.left_bb.max.x - org_x) * idir_x;
+                let c0loy = (node.left_bb.min.y - org_y) * idir_y;
+                let c0hiy = (node.left_bb.max.y - org_y) * idir_y;
+                let c0loz = (node.left_bb.min.z - org_z) * idir_z;
+                let c0hiz = (node.left_bb.max.z - org_z) * idir_z;
                 let c0min = span_begin(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmin);
                 let c0max = span_end(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmax);
 
-                let c1lox = (node.right_bb.min(0) - org_x) * idir_x;
-                let c1hix = (node.right_bb.max(0) - org_x) * idir_x;
-                let c1loy = (node.right_bb.min(1) - org_y) * idir_y;
-                let c1hiy = (node.right_bb.max(1) - org_y) * idir_y;
-                let c1loz = (node.right_bb.min(2) - org_z) * idir_z;
-                let c1hiz = (node.right_bb.max(2) - org_z) * idir_z;
+                let c1lox = (node.right_bb.min.x - org_x) * idir_x;
+                let c1hix = (node.right_bb.max.x - org_x) * idir_x;
+                let c1loy = (node.right_bb.min.y - org_y) * idir_y;
+                let c1hiy = (node.right_bb.max.y - org_y) * idir_y;
+                let c1loz = (node.right_bb.min.z - org_z) * idir_z;
+                let c1hiz = (node.right_bb.max.z - org_z) * idir_z;
                 let c1min = span_begin(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmin);
                 let c1max = span_end(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmax);
 
@@ -154,13 +172,13 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3
                         let v1 = tris(loop_id + 1);
                         let v2 = tris(loop_id + 2);
 
-                        if v0(0) == -0.0f {
+                        if v0.x == -0.0f {
                             break()
                         }
 
                         let e0 = vec3_sub(v1, v0);
                         let e1 = vec3_sub(v2, v0);
-                        let dir = [dir_x, dir_y, dir_z];
+                        let dir = vec3(dir_x, dir_y, dir_z);
                         let pvec = vec3_cross(dir, e1);
                         let det = vec3_dot(e0, pvec);
                         let eps = 1e-4f;
@@ -169,7 +187,7 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3
                         }
 
                         let idet = 1.0f / det;
-                        let org = [org_x, org_y, org_z];
+                        let org = vec3(org_x, org_y, org_z);
                         let tvec = vec3_sub(org, v0);
                         let u = vec3_dot(tvec, pvec) * idet;
                         if u >= 0.0f && u <= 1.0f {
@@ -193,7 +211,7 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Vec4], tris_ptr: &[Vec3
             }
 
             if tri_id >= 0 {
-                hits(id).tri_id = tri_id;
+                hits(id).tri_id = 0;//tri_id;
                 hits(id).tmax = tmax;
             }
         }

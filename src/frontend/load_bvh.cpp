@@ -108,24 +108,24 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec3*& tris_ref) {
             stack.push_back(stack_entry(n.child_first + 1, right_id));
         }
 
-        float* lmin = node_stack[top.dst_id].left_bb.min;
-        float* lmax = node_stack[top.dst_id].right_bb.max;
-        float* rmin = node_stack[top.dst_id].left_bb.min;
-        float* rmax = node_stack[top.dst_id].right_bb.max;
+        Vec3& lmin = node_stack[top.dst_id].left_bb.min;
+        Vec3& lmax = node_stack[top.dst_id].right_bb.max;
+        Vec3& rmin = node_stack[top.dst_id].left_bb.min;
+        Vec3& rmax = node_stack[top.dst_id].right_bb.max;
         
-        lmin[0] = left.min[0];
-        lmin[1] = left.min[1];
-        lmin[2] = left.min[2];
-        lmax[0] = left.max[0];
-        lmax[1] = left.max[1];
-        lmax[2] = left.max[2];
+        lmin.x = left.min[0];
+        lmin.y = left.min[1];
+        lmin.z = left.min[2];
+        lmax.x = left.max[0];
+        lmax.y = left.max[1];
+        lmax.z = left.max[2];
 
-        rmin[0] = right.min[0];
-        rmin[1] = right.min[1];
-        rmin[2] = right.min[2];
-        rmax[0] = right.max[0];
-        rmax[1] = right.max[1];
-        rmax[2] = right.max[2];
+        rmin.x = right.min[0];
+        rmin.y = right.min[1];
+        rmin.z = right.min[2];
+        rmax.x = right.max[0];
+        rmax.y = right.max[1];
+        rmax.z = right.max[2];
 
         node_stack[top.dst_id].left = left_id;
         node_stack[top.dst_id].right = right_id;

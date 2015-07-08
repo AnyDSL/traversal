@@ -60,14 +60,14 @@ int main(int argc, char** argv) {
     auto reset_hits = [&] () {
         for (int i = 0; i < ray_count; i++) {
             hits[i].tri_id = -1;
-            hits[i].tmax = rays[i * 2 + 1].w;        
+            hits[i].tmax = rays[i].tmax;        
         }
     };
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
         reset_hits();
-        traverse_accel(nodes, (float*)rays, (float*)tris, hits, ray_count);
+        traverse_accel(nodes, rays, tris, hits, ray_count);
     }
 
     // Compute traversal time
@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < times; i++) {
         reset_hits();
         auto t0 = std::chrono::high_resolution_clock::now();
-        traverse_accel(nodes, (float*)rays, (float*)tris, hits, ray_count);
+        traverse_accel(nodes, rays, tris, hits, ray_count);
         auto t1 = std::chrono::high_resolution_clock::now();
         time += t1 - t0;
     }
