@@ -6,15 +6,13 @@
 extern "C" {
 #endif
 
-struct Vec3 {
-    float x;
-    float y;
-    float z;
-};
-
 struct BBox {
-    struct Vec3 min;
-    struct Vec3 max;
+    float lo_x;
+    float hi_x;
+    float lo_y;
+    float hi_y;
+    float lo_z;
+    float hi_z;
 };
 
 struct Node {
@@ -26,11 +24,24 @@ struct Node {
     int pad1;
 };
 
+struct Vec3 {
+    float x;
+    float y;
+    float z;
+};
+
 struct Ray {
     struct Vec3 org;
     float tmin;
     struct Vec3 dir;
     float tmax;
+};
+
+struct Vec4 {
+    float x;
+    float y;
+    float z;
+    float w;
 };
 
 struct Hit {
@@ -40,7 +51,7 @@ struct Hit {
     int pad1;
 };
 
-void traverse_accel(struct Node* nodes_ptr, struct Ray* rays_ptr, struct Vec3* tris_ptr, struct Hit* hits_ptr, int ray_count);
+void traverse_accel(struct Node* nodes_ptr, struct Ray* rays_ptr, struct Vec4* tris_ptr, struct Hit* hits_ptr, int ray_count);
 
 #ifdef __cplusplus
 }
