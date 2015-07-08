@@ -20,8 +20,6 @@ include_directories(${THORIN_RUNTIME_INCLUDE_DIR})
 
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(BACKEND "cpu")
-else()
-    set(BACKEND "nvvm")
 endif()
 
 set(ACCEL "bvh" CACHE STRING "Acceleration structure type (bvh, ...)")

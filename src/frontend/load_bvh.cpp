@@ -66,8 +66,8 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec3*& tris_ref) {
             int i1 = tri_ids[tri_id * 3 + 1];
             int i2 = tri_ids[tri_id * 3 + 2];
             Vec3 v0 = { vertices[i0 * 3 + 0], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2] };
-            Vec3 v1 = { vertices[i1 * 3 + 0], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2] };
-            Vec3 v2 = { vertices[i2 * 3 + 0], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2] };
+            Vec3 v1 = { vertices[i1 * 3 + 0], vertices[i1 * 3 + 1], vertices[i1 * 3 + 2] };
+            Vec3 v2 = { vertices[i2 * 3 + 0], vertices[i2 * 3 + 1], vertices[i2 * 3 + 2] };
             tri_stack.push_back(v0);
             tri_stack.push_back(v1);
             tri_stack.push_back(v2);
@@ -109,13 +109,14 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec3*& tris_ref) {
         }
 
         Vec3& lmin = node_stack[top.dst_id].left_bb.min;
-        Vec3& lmax = node_stack[top.dst_id].right_bb.max;
-        Vec3& rmin = node_stack[top.dst_id].left_bb.min;
+        Vec3& lmax = node_stack[top.dst_id].left_bb.max;
+        Vec3& rmin = node_stack[top.dst_id].right_bb.min;
         Vec3& rmax = node_stack[top.dst_id].right_bb.max;
         
         lmin.x = left.min[0];
         lmin.y = left.min[1];
         lmin.z = left.min[2];
+
         lmax.x = left.max[0];
         lmax.y = left.max[1];
         lmax.z = left.max[2];
@@ -123,6 +124,7 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec3*& tris_ref) {
         rmin.x = right.min[0];
         rmin.y = right.min[1];
         rmin.z = right.min[2];
+
         rmax.x = right.max[0];
         rmax.y = right.max[1];
         rmax.z = right.max[2];

@@ -32,6 +32,22 @@ struct Hit {
     pad1: i32
 }
 
+struct Stack {
+    data : [i32 * 64],
+    id : i32
+}
+
+fn push(mut stack: &Stack, i: i32) -> () {
+    stack.id++;
+    stack.data(stack.id) = i;
+}
+
+fn pop(mut stack: &Stack) -> i32 {
+    let ret = stack.data(stack.id);
+    stack.id--;
+    ret
+}
+
 static block_w = 32;
 static block_h = 4;
 static sentinel = 0x76543210;
@@ -91,129 +107,127 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec3]
     let grid = (ray_count / block_h, block_h, 1);
     let block = (block_w, block_h, 1);
 
-    acc(dev, grid, block, || @{
+    acc(dev, grid, block, |exit| {
         let nodes = magic_node_id(nodes_ptr);
         let rays = magic_ray_id(rays_ptr);
         let tris = magic_tri_id(tris_ptr);
         let mut hits = magic_hit_id(hits_ptr);
 
         let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
-        if id <= ray_count {
-            // Initialize ray
-            let org_x = rays(id).org.x;
-            let org_y = rays(id).org.y;
-            let org_z = rays(id).org.z;
-            let tmin = rays(id).tmin;
+        if id > ray_count {
+            exit()
+        }
 
-            let dir_x = rays(id).dir.x;
-            let dir_y = rays(id).dir.y;
-            let dir_z = rays(id).dir.z;
-            let mut tmax = rays(id).tmax;
+        // Initialize stack
+        let mut stack : Stack;
+        stack.id = 0;
+        stack.data(0) = sentinel;
 
-            let idir_x = 1.0f / dir_x;
-            let idir_y = 1.0f / dir_y;
-            let idir_z = 1.0f / dir_z;
+        // Initialize ray
+        let org_x = rays(id).org.x;
+        let org_y = rays(id).org.y;
+        let org_z = rays(id).org.z;
+        let tmin = rays(id).tmin;
 
-            // Initialize stack
-            let mut stack : [i32 * 64];
-            let mut stack_id = 0;
-            stack(0) = sentinel;
+        let dir_x = rays(id).dir.x;
+        let dir_y = rays(id).dir.y;
+        let dir_z = rays(id).dir.z;
+        let mut tmax = rays(id).tmax;
 
-            let mut node_id = 0;
-            let mut tri_id = -1;
+        let idir_x = 1.0f / dir_x;
+        let idir_y = 1.0f / dir_y;
+        let idir_z = 1.0f / dir_z;
 
-            // Traversal loop
-            while (node_id as u32) < (sentinel as u32) {
-                // Load & intersect the node
-                let node = nodes(node_id);
+        let mut node_id = 0;
+        let mut tri_id = -1;
 
-                let c0lox = (node.left_bb.min.x - org_x) * idir_x;
-                let c0hix = (node.left_bb.max.x - org_x) * idir_x;
-                let c0loy = (node.left_bb.min.y - org_y) * idir_y;
-                let c0hiy = (node.left_bb.max.y - org_y) * idir_y;
-                let c0loz = (node.left_bb.min.z - org_z) * idir_z;
-                let c0hiz = (node.left_bb.max.z - org_z) * idir_z;
-                let c0min = span_begin(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmin);
-                let c0max = span_end(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmax);
+        // Traversal loop
+        while (node_id as u32) < (sentinel as u32) {
+            // Load & intersect the node
+            let node = nodes(node_id);
 
-                let c1lox = (node.right_bb.min.x - org_x) * idir_x;
-                let c1hix = (node.right_bb.max.x - org_x) * idir_x;
-                let c1loy = (node.right_bb.min.y - org_y) * idir_y;
-                let c1hiy = (node.right_bb.max.y - org_y) * idir_y;
-                let c1loz = (node.right_bb.min.z - org_z) * idir_z;
-                let c1hiz = (node.right_bb.max.z - org_z) * idir_z;
-                let c1min = span_begin(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmin);
-                let c1max = span_end(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmax);
+            let c0lox = (node.left_bb.min.x - org_x) * idir_x;
+            let c0hix = (node.left_bb.max.x - org_x) * idir_x;
+            let c0loy = (node.left_bb.min.y - org_y) * idir_y;
+            let c0hiy = (node.left_bb.max.y - org_y) * idir_y;
+            let c0loz = (node.left_bb.min.z - org_z) * idir_z;
+            let c0hiz = (node.left_bb.max.z - org_z) * idir_z;
+            let c0min = span_begin(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmin);
+            let c0max = span_end(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmax);
 
-                let swp = c1min < c0min;
-                let tc0 = c0max >= c0min;
-                let tc1 = c1max >= c1min;
+            let c1lox = (node.right_bb.min.x - org_x) * idir_x;
+            let c1hix = (node.right_bb.max.x - org_x) * idir_x;
+            let c1loy = (node.right_bb.min.y - org_y) * idir_y;
+            let c1hiy = (node.right_bb.max.y - org_y) * idir_y;
+            let c1loz = (node.right_bb.min.z - org_z) * idir_z;
+            let c1hiz = (node.right_bb.max.z - org_z) * idir_z;
+            let c1min = span_begin(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmin);
+            let c1max = span_end(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmax);
 
-                if !tc0 && !tc1 {
-                    // Pop from the stack
-                    node_id = stack(stack_id--);
-                } else {
-                    node_id = if tc0 { node.left } else { node.right };
-                    if tc0 && tc1 {
-                        stack(++stack_id) = if swp {
-                            node_id = node.right;
-                            node.left
-                        } else {
-                            node.right
-                        };
-                    }
+            let swp = c1min < c0min;
+            let tc0 = c0max >= c0min;
+            let tc1 = c1max >= c1min;
+
+            if !tc0 && !tc1 {
+                // Pop from the stack
+                node_id = pop(&stack);
+            } else {
+                node_id = if tc0 { node.left } else { node.right };
+                if tc0 && tc1 {
+                    push(&stack, if swp { node_id = node.right; node.left } else { node.right });
                 }
+            }
 
-                // Intersect leaves
-                while node_id < 0 {
-                    let mut loop_id = !node_id;                
-                    while true {
-                        let v0 = tris(loop_id + 0);
-                        let v1 = tris(loop_id + 1);
-                        let v2 = tris(loop_id + 2);
+            // Intersect leaves
+            while node_id < 0 {
+                let mut loop_id = !node_id;
+                while true {
+                    let v0 = tris(loop_id + 0);
+                    let v1 = tris(loop_id + 1);
+                    let v2 = tris(loop_id + 2);
 
-                        if v0.x == -0.0f {
-                            break()
-                        }
+                    if v0.x == -0.0f {
+                        break()
+                    }
 
-                        let e0 = vec3_sub(v1, v0);
-                        let e1 = vec3_sub(v2, v0);
-                        let dir = vec3(dir_x, dir_y, dir_z);
-                        let pvec = vec3_cross(dir, e1);
-                        let det = vec3_dot(e0, pvec);
-                        let eps = 1e-4f;
-                        if det > -eps && det < eps {
-                            continue()
-                        }
+                    let e0 = vec3_sub(v1, v0);
+                    let e1 = vec3_sub(v2, v0);
+                    let dir = vec3(dir_x, dir_y, dir_z);
+                    let pvec = vec3_cross(dir, e1);
+                    let det = vec3_dot(e0, pvec);
+                    let eps = 1e-4f;
+                    if det > -eps && det < eps {
+                        loop_id += 3;
+                        continue()
+                    }
 
-                        let idet = 1.0f / det;
-                        let org = vec3(org_x, org_y, org_z);
-                        let tvec = vec3_sub(org, v0);
-                        let u = vec3_dot(tvec, pvec) * idet;
-                        if u >= 0.0f && u <= 1.0f {
-                            let qvec = vec3_cross(tvec, e0);                        
-                            let v = vec3_dot(qvec, dir) * idet;
-                            if v >= 0.0f && u + v <= 1.0f {
-                                let t = vec3_dot(e1, qvec) * idet;
-                                if t >= tmin && t <= tmax {
-                                    tmax = t;
-                                    tri_id = loop_id;
-                                }
+                    let idet = 1.0f / det;
+                    let org = vec3(org_x, org_y, org_z);
+                    let tvec = vec3_sub(org, v0);
+                    let u = vec3_dot(tvec, pvec) * idet;
+                    if u >= 0.0f && u <= 1.0f {
+                        let qvec = vec3_cross(tvec, e0);                        
+                        let v = vec3_dot(qvec, dir) * idet;
+                        if v >= 0.0f && u + v <= 1.0f {
+                            let t = vec3_dot(e1, qvec) * idet;
+                            if t >= tmin && t <= tmax {
+                                tmax = t;
+                                tri_id = loop_id;
                             }
                         }
-
-                        loop_id += 3;
                     }
 
-                    // Pop node from the stack
-                    node_id = stack(stack_id--);
+                    loop_id += 3;
                 }
-            }
 
-            if tri_id >= 0 {
-                hits(id).tri_id = 0;//tri_id;
-                hits(id).tmax = tmax;
+                // Pop node from the stack
+                node_id = pop(&stack);
             }
+        }
+
+        if tri_id >= 0 {
+            hits(id).tri_id = tri_id;
+            hits(id).tmax = tmax;
         }
     })
 }
