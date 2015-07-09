@@ -30,8 +30,8 @@ struct BBox {
 struct Node {
     left_bb: BBox,
     right_bb: BBox,
-    right: i32,
     left: i32,
+    right: i32,
     pad0: i32,
     pad1: i32
 }
@@ -119,9 +119,9 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4]
     let block = (block_w, block_h, 1);
 
     acc(dev, grid, block, |exit| {
-        let nodes = magic_node_id(nodes_ptr);
-        let rays = magic_ray_id(rays_ptr);
-        let tris = magic_tri_id(tris_ptr);
+        let mut nodes = magic_node_id(nodes_ptr);
+        let mut rays = magic_ray_id(rays_ptr);
+        let mut tris = magic_tri_id(tris_ptr);
         let mut hits = magic_hit_id(hits_ptr);
 
         let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
@@ -135,15 +135,19 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4]
         stack.data(0) = sentinel as i32;
 
         // Initialize ray
-        let org_x = rays(id).org.x;
-        let org_y = rays(id).org.y;
-        let org_z = rays(id).org.z;
-        let tmin = rays(id).tmin;
+        let mut ray = &rays(id) as &[f32];
+        let org = *(&ray(0) as &simd[f32 * 4]);
+        let dir = *(&ray(4) as &simd[f32 * 4]);
 
-        let dir_x = rays(id).dir.x;
-        let dir_y = rays(id).dir.y;
-        let dir_z = rays(id).dir.z;
-        let mut tmax = rays(id).tmax;
+        let org_x = org(0);
+        let org_y = org(1);
+        let org_z = org(2);
+        let tmin = org(3);
+
+        let dir_x = dir(0);
+        let dir_y = dir(1);
+        let dir_z = dir(2);
+        let mut tmax = dir(3);
 
         let idir_x = 1.0f / dir_x;
         let idir_y = 1.0f / dir_y;
@@ -155,23 +159,26 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4]
         // Traversal loop
         while (node_id as u32) < sentinel {
             // Load & intersect the node
-            let node = nodes(node_id);
+            let mut node = &nodes(node_id) as &[f32];
+            let bb0 = *(&node(0) as &simd[f32 * 4]);
+            let bb1 = *(&node(4) as &simd[f32 * 4]);
+            let bb2 = *(&node(8) as &simd[f32 * 4]);
 
-            let c0lox = (node.left_bb.lo_x - org_x) * idir_x;
-            let c0hix = (node.left_bb.hi_x - org_x) * idir_x;
-            let c0loy = (node.left_bb.lo_y - org_y) * idir_y;
-            let c0hiy = (node.left_bb.hi_y - org_y) * idir_y;
-            let c0loz = (node.left_bb.lo_z - org_z) * idir_z;
-            let c0hiz = (node.left_bb.hi_z - org_z) * idir_z;
+            let c0lox = (bb0(0) - org_x) * idir_x;
+            let c0hix = (bb0(1) - org_x) * idir_x;
+            let c0loy = (bb0(2) - org_y) * idir_y;
+            let c0hiy = (bb0(3) - org_y) * idir_y;
+            let c0loz = (bb1(0) - org_z) * idir_z;
+            let c0hiz = (bb1(1) - org_z) * idir_z;
+            let c1lox = (bb1(2) - org_x) * idir_x;
+            let c1hix = (bb1(3) - org_x) * idir_x;
             let c0min = span_begin(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmin);
             let c0max = span_end(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmax);
 
-            let c1lox = (node.right_bb.lo_x - org_x) * idir_x;
-            let c1hix = (node.right_bb.hi_x - org_x) * idir_x;
-            let c1loy = (node.right_bb.lo_y - org_y) * idir_y;
-            let c1hiy = (node.right_bb.hi_y - org_y) * idir_y;
-            let c1loz = (node.right_bb.lo_z - org_z) * idir_z;
-            let c1hiz = (node.right_bb.hi_z - org_z) * idir_z;
+            let c1loy = (bb2(0) - org_y) * idir_y;
+            let c1hiy = (bb2(1) - org_y) * idir_y;
+            let c1loz = (bb2(2) - org_z) * idir_z;
+            let c1hiz = (bb2(3) - org_z) * idir_z;
             let c1min = span_begin(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmin);
             let c1max = span_end(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmax);
 
@@ -179,20 +186,28 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4]
             let tc0 = c0max >= c0min;
             let tc1 = c1max >= c1min;
 
+            let children = *(&node(12) as &simd[i32 * 4]);
+            let left = children(0);
+            let right = children(1);
+
             if !tc0 && !tc1 {
                 // Pop from the stack
                 node_id = pop(&stack);
             } else {
-                node_id = if tc0 { node.left } else { node.right };
+                node_id = if tc0 { left } else { right };
                 if tc0 && tc1 {
-                    push(&stack, if swp { node_id = node.right; node.left } else { node.right });
+                    push(&stack, if swp { node_id = right; left } else { right });
                 }
             }
 
             fn intersect_tri(id: i32, intr: fn (f32) -> ()) -> () {
-                let v0 = vec3(tris(id + 0).x, tris(id + 0).y, tris(id + 0).z);
-                let v1 = vec3(tris(id + 1).x, tris(id + 1).y, tris(id + 1).z);
-                let v2 = vec3(tris(id + 2).x, tris(id + 2).y, tris(id + 2).z);
+                let vv0 = *(&tris(id + 0) as &simd[f32 * 4]);
+                let vv1 = *(&tris(id + 1) as &simd[f32 * 4]);
+                let vv2 = *(&tris(id + 2) as &simd[f32 * 4]);
+
+                let v0 = vec3(vv0(0), vv0(1), vv0(2));
+                let v1 = vec3(vv1(0), vv1(1), vv1(2));
+                let v2 = vec3(vv2(0), vv2(1), vv2(2));
 
                 let e0 = vec3_sub(v1, v0);
                 let e1 = vec3_sub(v2, v0);
