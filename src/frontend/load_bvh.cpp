@@ -131,6 +131,9 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
         node_stack[top.dst_id].right = right_id;
     }
 
+    tri_stack.push_back(tri_sentinel);
+    tri_stack.push_back(tri_sentinel);
+
     nodes_ref = thorin_new<Node>(node_stack.size());
     std::copy(node_stack.begin(), node_stack.end(), nodes_ref);
 

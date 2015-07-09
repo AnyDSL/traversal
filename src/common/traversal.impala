@@ -48,6 +48,13 @@ struct Stack {
     id : i32
 }
 
+fn empty_stack() -> Stack {
+    let mut stack : Stack;
+    stack.data(0) = stack_sentinel as i32;
+    stack.id = 0;
+    stack
+}
+
 fn push(mut stack: &Stack, i: i32) -> () {
     stack.id++;
     stack.data(stack.id) = i;
@@ -61,7 +68,7 @@ fn pop(mut stack: &Stack) -> i32 {
 
 static block_w = 32;
 static block_h = 4;
-static sentinel = 0x76543210u32;
+static stack_sentinel = 0x76543210u32;
 
 extern "C" {
     fn fmin_fmin(f32, f32, f32) -> f32;
@@ -113,16 +120,92 @@ fn vec3_dot(a: Vec3, b: Vec3) -> f32 {
     a.x * b.x + a.y * b.y + a.z * b.z
 }
 
+struct RayData {
+    org: Vec3,
+    dir: Vec3,
+    idir: Vec3,
+    tmin: f32,
+    tmax: f32,
+    tri_id: i32
+}
+
+fn intersect_ray_box(org: Vec3, idir: Vec3, tmin: f32, tmax: f32, min: Vec3, max: Vec3, intr: fn (f32, f32) -> ()) -> () {
+    let t0_x = (min.x - org.x) * idir.x;
+    let t1_x = (max.x - org.x) * idir.x;
+    let t0_y = (min.y - org.y) * idir.y;
+    let t1_y = (max.y - org.y) * idir.y;
+    let t0_z = (min.z - org.z) * idir.z;
+    let t1_z = (max.z - org.z) * idir.z;
+    let t0 = span_begin(t0_x, t1_x, t0_y, t1_y, t0_z, t1_z, tmin);
+    let t1 = span_end(t0_x, t1_x, t0_y, t1_y, t0_z, t1_z, tmax);
+    intr(t0, t1)
+}
+
+fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: f32, tmax: f32, v0: Vec3, v1: Vec3, v2: Vec3, intr: fn (f32) -> ()) -> () {
+    let e0 = vec3_sub(v1, v0);
+    let e1 = vec3_sub(v2, v0);
+    let pvec = vec3_cross(dir, e1);
+    let det = vec3_dot(e0, pvec);
+    let eps = 1e-4f;
+    if fabsf(det) < eps {
+        return()
+    }
+
+    let idet = 1.0f / det;
+    let tvec = vec3_sub(org, v0);
+    let u = vec3_dot(tvec, pvec) * idet;
+    if u >= 0.0f && u <= 1.0f {
+        let qvec = vec3_cross(tvec, e0);                        
+        let v = vec3_dot(qvec, dir) * idet;
+        if v >= 0.0f && u + v <= 1.0f {
+            let t = vec3_dot(e1, qvec) * idet;
+            if t >= tmin && t <= tmax {
+                intr(t);
+            }
+        }
+    }
+}
+
+fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (i32, Vec3, Vec3, Vec3) -> ()) -> () {
+    let mut loop_id = !node_id;
+    while true {
+        let v0 = *(&tris(loop_id + 0) as &simd[f32 * 4]);
+        let v1 = *(&tris(loop_id + 1) as &simd[f32 * 4]);
+        let v2 = *(&tris(loop_id + 2) as &simd[f32 * 4]);
+
+        body(loop_id,
+             vec3(v0(0), v0(1), v0(2)),
+             vec3(v1(0), v1(1), v1(2)),
+             vec3(v2(0), v2(1), v2(2)));
+
+        loop_id += 3;
+        if tris(loop_id).x == -0.0f {
+            break()
+        }
+    }
+}
+
+fn iterate_children(mut nodes: &[Node], node_id: i32, body: fn(i32, Vec3, Vec3, i32) -> ()) -> () {
+    let mut node_ptr = &nodes(node_id) as &[f32];
+    let bb0 = *(&node_ptr(0) as &simd[f32 * 4]);
+    let bb1 = *(&node_ptr(4) as &simd[f32 * 4]);
+    let bb2 = *(&node_ptr(8) as &simd[f32 * 4]);
+    let children = *(&node_ptr(12) as &simd[i32 * 4]);
+
+    body(0, vec3(bb0(0), bb0(2), bb1(0)), vec3(bb0(1), bb0(3), bb1(1)), children(0));
+    body(1, vec3(bb1(2), bb2(0), bb2(2)), vec3(bb1(3), bb2(1), bb2(3)), children(1));
+}
+
 extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4], hits_ptr: &[Hit], ray_count: i32) -> () @{
     let dev = acc_dev();
     let grid = (ray_count / block_h, block_h, 1);
     let block = (block_w, block_h, 1);
 
-    acc(dev, grid, block, |exit| {
-        let mut nodes = magic_node_id(nodes_ptr);
+    acc(dev, grid, block, |exit| @{
         let mut rays = magic_ray_id(rays_ptr);
-        let mut tris = magic_tri_id(tris_ptr);
         let mut hits = magic_hit_id(hits_ptr);
+        let nodes = magic_node_id(nodes_ptr);
+        let tris = magic_tri_id(tris_ptr);
 
         let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
         if id > ray_count {
@@ -132,122 +215,53 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4]
         // Initialize stack
         let mut stack : Stack;
         stack.id = 0;
-        stack.data(0) = sentinel as i32;
+        stack.data(0) = stack_sentinel as i32;
 
-        // Initialize ray
-        let mut ray = &rays(id) as &[f32];
-        let org = *(&ray(0) as &simd[f32 * 4]);
-        let dir = *(&ray(4) as &simd[f32 * 4]);
+        // Load ray
+        let mut ray_ptr = &rays(id) as &[f32];
+        let ray0 = *(&ray_ptr(0) as &simd[f32 * 4]);
+        let ray1 = *(&ray_ptr(4) as &simd[f32 * 4]);
 
-        let org_x = org(0);
-        let org_y = org(1);
-        let org_z = org(2);
-        let tmin = org(3);
-
-        let dir_x = dir(0);
-        let dir_y = dir(1);
-        let dir_z = dir(2);
-        let mut tmax = dir(3);
-
-        let idir_x = 1.0f / dir_x;
-        let idir_y = 1.0f / dir_y;
-        let idir_z = 1.0f / dir_z;
-
-        let mut node_id = 0;
+        let org = vec3(ray0(0), ray0(1), ray0(2));
+        let dir = vec3(ray1(0), ray1(1), ray1(2));
+        let idir = vec3(1.0f / ray1(0), 1.0f / ray1(1), 1.0f / ray1(2));
+        let tmin = ray0(3);
+        let mut tmax = ray1(3);
         let mut tri_id = -1;
+        let mut node_id = 0;
 
         // Traversal loop
-        while (node_id as u32) < sentinel {
-            // Load & intersect the node
-            let mut node = &nodes(node_id) as &[f32];
-            let bb0 = *(&node(0) as &simd[f32 * 4]);
-            let bb1 = *(&node(4) as &simd[f32 * 4]);
-            let bb2 = *(&node(8) as &simd[f32 * 4]);
+        while (node_id as u32) < stack_sentinel {
+            // Intersect children
+            let mut t : [f32 * 2];
+            let mut intr : [bool * 2] = [false, false];
+            let mut next : [i32 * 2];
 
-            let c0lox = (bb0(0) - org_x) * idir_x;
-            let c0hix = (bb0(1) - org_x) * idir_x;
-            let c0loy = (bb0(2) - org_y) * idir_y;
-            let c0hiy = (bb0(3) - org_y) * idir_y;
-            let c0loz = (bb1(0) - org_z) * idir_z;
-            let c0hiz = (bb1(1) - org_z) * idir_z;
-            let c1lox = (bb1(2) - org_x) * idir_x;
-            let c1hix = (bb1(3) - org_x) * idir_x;
-            let c0min = span_begin(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmin);
-            let c0max = span_end(c0lox, c0hix, c0loy, c0hiy, c0loz, c0hiz, tmax);
+            for i, min, max, child in iterate_children(nodes, node_id) @{
+                intersect_ray_box(org, idir, tmin, tmax, min, max, |t0, t1| @{
+                    t(i) = t0;
+                    intr(i) = t0 <= t1;
+                    next(i) = child;
+                });
+            }
 
-            let c1loy = (bb2(0) - org_y) * idir_y;
-            let c1hiy = (bb2(1) - org_y) * idir_y;
-            let c1loz = (bb2(2) - org_z) * idir_z;
-            let c1hiz = (bb2(3) - org_z) * idir_z;
-            let c1min = span_begin(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmin);
-            let c1max = span_end(c1lox, c1hix, c1loy, c1hiy, c1loz, c1hiz, tmax);
-
-            let swp = c1min < c0min;
-            let tc0 = c0max >= c0min;
-            let tc1 = c1max >= c1min;
-
-            let children = *(&node(12) as &simd[i32 * 4]);
-            let left = children(0);
-            let right = children(1);
-
-            if !tc0 && !tc1 {
+            if !intr(0) && !intr(1) {
                 // Pop from the stack
                 node_id = pop(&stack);
             } else {
-                node_id = if tc0 { left } else { right };
-                if tc0 && tc1 {
-                    push(&stack, if swp { node_id = right; left } else { right });
-                }
-            }
-
-            fn intersect_tri(id: i32, intr: fn (f32) -> ()) -> () {
-                let vv0 = *(&tris(id + 0) as &simd[f32 * 4]);
-                let vv1 = *(&tris(id + 1) as &simd[f32 * 4]);
-                let vv2 = *(&tris(id + 2) as &simd[f32 * 4]);
-
-                let v0 = vec3(vv0(0), vv0(1), vv0(2));
-                let v1 = vec3(vv1(0), vv1(1), vv1(2));
-                let v2 = vec3(vv2(0), vv2(1), vv2(2));
-
-                let e0 = vec3_sub(v1, v0);
-                let e1 = vec3_sub(v2, v0);
-                let dir = vec3(dir_x, dir_y, dir_z);
-                let pvec = vec3_cross(dir, e1);
-                let det = vec3_dot(e0, pvec);
-                let eps = 1e-4f;
-                if fabsf(det) < eps {
-                    return()
-                }
-
-                let idet = 1.0f / det;
-                let org = vec3(org_x, org_y, org_z);
-                let tvec = vec3_sub(org, v0);
-                let u = vec3_dot(tvec, pvec) * idet;
-                if u >= 0.0f && u <= 1.0f {
-                    let qvec = vec3_cross(tvec, e0);                        
-                    let v = vec3_dot(qvec, dir) * idet;
-                    if v >= 0.0f && u + v <= 1.0f {
-                        let t = vec3_dot(e1, qvec) * idet;
-                        if t >= tmin && t <= tmax {
-                            intr(t);
-                        }
-                    }
+                node_id = if intr(0) { next(0) } else { next(1) };
+                if intr(0) && intr(1) {
+                    push(&stack, if t(1) < t(0) { node_id = next(1); next(0) } else { next(1) });
                 }
             }
 
             // Intersect leaves
             while node_id < 0 {
-                let mut loop_id = !node_id;
-
-                while true {
-                    @intersect_tri(loop_id, |t| {
+                for id, v0, v1, v2 in iterate_triangles(nodes, tris, node_id) @{
+                    intersect_ray_tri(org, dir, tmin, tmax, v0, v1, v2, |t| {
                         tmax = t;
-                        tri_id = loop_id;
+                        tri_id = id;
                     });
-                    loop_id += 3;
-                    if tris(loop_id).x == -0.0f {
-                        break()
-                    }
                 }
 
                 // Pop node from the stack
