@@ -185,15 +185,38 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (
     }
 }
 
-fn iterate_children(mut nodes: &[Node], node_id: i32, body: fn(i32, Vec3, Vec3, i32) -> ()) -> () {
-    let mut node_ptr = &nodes(node_id) as &[f32];
+fn iterate_children(mut nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(Vec3, Vec3, fn (bool, f32) -> ()) -> ()) -> () {
+    let mut node_ptr = &nodes(*node_id) as &[f32];
     let bb0 = *(&node_ptr(0) as &simd[f32 * 4]);
     let bb1 = *(&node_ptr(4) as &simd[f32 * 4]);
     let bb2 = *(&node_ptr(8) as &simd[f32 * 4]);
     let children = *(&node_ptr(12) as &simd[i32 * 4]);
 
-    body(0, vec3(bb0(0), bb0(2), bb1(0)), vec3(bb0(1), bb0(3), bb1(1)), children(0));
-    body(1, vec3(bb1(2), bb2(0), bb2(2)), vec3(bb1(3), bb2(1), bb2(3)), children(1));
+    let mut t : [f32 * 2];
+    let mut next : [i32 * 2];
+    let mut intr : [bool * 2] = [false, false];
+
+    body(vec3(bb0(0), bb0(2), bb1(0)), vec3(bb0(1), bb0(3), bb1(1)), |hit, t0| {
+        t(0) = t0;
+        next(0) = children(0);
+        intr(0) = hit;
+    });
+
+    body(vec3(bb1(2), bb2(0), bb2(2)), vec3(bb1(3), bb2(1), bb2(3)), |hit, t0| {
+        t(1) = t0;
+        next(1) = children(1);
+        intr(1) = hit;
+    });
+
+    if !intr(0) && !intr(1) {
+        // Pop from the stack
+        *node_id = pop(stack);
+    } else {
+        *node_id = if intr(0) { next(0) } else { next(1) };
+        if intr(0) && intr(1) {
+            push(stack, if t(1) < t(0) { *node_id = next(1); next(0) } else { next(1) });
+        }
+    }
 }
 
 extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4], hits_ptr: &[Hit], ray_count: i32) -> () @{
@@ -233,26 +256,10 @@ extern fn traverse_accel(nodes_ptr: &[Node], rays_ptr: &[Ray], tris_ptr: &[Vec4]
         // Traversal loop
         while (node_id as u32) < stack_sentinel {
             // Intersect children
-            let mut t : [f32 * 2];
-            let mut intr : [bool * 2] = [false, false];
-            let mut next : [i32 * 2];
-
-            for i, min, max, child in iterate_children(nodes, node_id) @{
+            for min, max, hit in iterate_children(nodes, &stack, &node_id) @{
                 intersect_ray_box(org, idir, tmin, tmax, min, max, |t0, t1| @{
-                    t(i) = t0;
-                    intr(i) = t0 <= t1;
-                    next(i) = child;
+                    hit(t0 <= t1, t0)
                 });
-            }
-
-            if !intr(0) && !intr(1) {
-                // Pop from the stack
-                node_id = pop(&stack);
-            } else {
-                node_id = if intr(0) { next(0) } else { next(1) };
-                if intr(0) && intr(1) {
-                    push(&stack, if t(1) < t(0) { node_id = next(1); next(0) } else { next(1) });
-                }
             }
 
             // Intersect leaves
