@@ -3,7 +3,7 @@
 #include <chrono>
 #include <functional>
 #include "options.h"
-#include "interface.h"
+#include "traversal.h"
 #include "loaders.h"
 #include "thorin_runtime.h"
 

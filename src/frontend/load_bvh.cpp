@@ -2,7 +2,7 @@
 #include <vector>
 #include <fstream>
 #include "thorin_runtime.h"
-#include "interface.h"
+#include "traversal.h"
 
 struct hdr {
     int node_count;

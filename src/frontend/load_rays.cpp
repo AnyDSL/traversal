@@ -1,7 +1,7 @@
 #include <fstream>
 #include <string>
 #include "thorin_runtime.h"
-#include "interface.h"
+#include "traversal.h"
 
 bool load_rays(const std::string& filename, Rays*& rays, int& count, float tmin, float tmax) {
     std::ifstream in(filename, std::ifstream::binary);

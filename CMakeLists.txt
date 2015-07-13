@@ -1,4 +1,4 @@
-project(TRAVERSAL)
+project(Traversal)
 
 cmake_minimum_required(VERSION 2.4)
 
@@ -30,4 +30,8 @@ set(VECTORIZE "" CACHE STRING "Hand coded vectorization length (1, 4, 8, 16)")
 find_package(Threads REQUIRED)
 
 add_subdirectory(src)
+
+get_target_property(CONF_TRAVERSAL_LIBRARY traversal LOCATION)
+get_target_property(CONF_TRAVERSAL_EXECUTABLE frontend LOCATION)
+configure_file(TraversalConfig.cmake.in "${CMAKE_CURRENT_SOURCE_DIR}/TraversalConfig.cmake" @ONLY)
 
