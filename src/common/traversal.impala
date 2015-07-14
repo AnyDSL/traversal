@@ -215,7 +215,7 @@ struct RayData {
 
 type HitFn = fn (i32, f32) -> ();
 
-fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (RayData, HitFn) -> ()) -> () {
+fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, f32, f32, HitFn) -> ()) -> () {
     let dev = acc_dev();
     let grid = (ray_count / block_h, block_h, 1);
     let block = (block_w, block_h, 1);
@@ -230,13 +230,9 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Ra
         let ray0 = *(&ray_ptr(0) as &simd[f32 * 4]);
         let ray1 = *(&ray_ptr(4) as &simd[f32 * 4]);
 
-        @body(RayData {
-            org: vec3(ray0(0), ray0(1), ray0(2)),
-            dir: vec3(ray1(0), ray1(1), ray1(2)),
-            idir: vec3(1.0f / ray1(0), 1.0f / ray1(1), 1.0f / ray1(2)),
-            tmin: ray0(3),
-            tmax: ray1(3)
-        }, |tri, t| {
+        @body(vec3(ray0(0), ray0(1), ray0(2)),
+              vec3(ray1(0), ray1(1), ray1(2)),
+              ray0(3), ray1(3), |tri, t| {
             hits(id).tri_id = tri;
             hits(id).tmax = t;
         });
@@ -245,12 +241,14 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Ra
 
 extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hit], ray_count: i32) -> () {
     let sentinel = 0x76543210u32;
-    for ray, record_hit in iterate_rays(rays, hits, ray_count) {
+    for org, dir, tmin, tmax, record_hit in iterate_rays(rays, hits, ray_count) {
         // Initialize traversal variables
         let mut stack = empty_stack();
         let mut node_id = 0;
-        let mut tmax = ray.tmax;
-        let mut tri_id = -1;
+
+        let idir = vec3(1.0f / dir.x, 1.0f / dir.y, 1.0f / dir.z);
+        let mut t = tmax;
+        let mut tri = -1;
 
         stack.data(0) = sentinel as i32;
 
@@ -258,7 +256,7 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
         while (node_id as u32) < sentinel {
             // Intersect children and update stack
             for min, max, hit in iterate_children(nodes, &stack, &node_id) {
-                intersect_ray_box(ray.org, ray.idir, ray.tmin, tmax, min, max, |t0, t1| {
+                intersect_ray_box(org, idir, tmin, t, min, max, |t0, t1| {
                     hit(t0 <= t1, t0)
                 });
             }
@@ -266,9 +264,9 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
             // Intersect leaves
             while node_id < 0 {
                 for id, v0, v1, v2 in iterate_triangles(nodes, tris, node_id) {
-                    intersect_ray_tri(ray.org, ray.dir, ray.tmin, ray.tmax, v0, v1, v2, |t| {
-                        tmax = t;
-                        tri_id = id;
+                    intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |dist| {
+                        t = dist;
+                        tri = id;
                     });
                 }
 
@@ -277,8 +275,8 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
             }
         }
 
-        if tri_id >= 0 {
-            record_hit(tri_id, tmax);
+        if tri >= 0 {
+            record_hit(tri, t);
         }
     }
 }
