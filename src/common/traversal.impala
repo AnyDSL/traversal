@@ -133,7 +133,7 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: f32, tmax: f32, v0: Vec3, v1: V
     let pvec = vec3_cross(dir, e1);
     let det = vec3_dot(e0, pvec);
     let eps = 1e-4f;
-    if fabsf(det) < eps {
+    if det > -eps && det < eps {
         return()
     }
 
@@ -203,14 +203,6 @@ fn iterate_children(mut nodes: &[Node], stack: &Stack, mut node_id: &i32, body: 
             push(stack, if t(1) < t(0) { *node_id = next(1); next(0) } else { next(1) });
         }
     }
-}
-
-struct RayData {
-    org: Vec3,
-    tmin: f32,
-    dir: Vec3,
-    tmax: f32,
-    idir: Vec3
 }
 
 type HitFn = fn (i32, f32) -> ();
