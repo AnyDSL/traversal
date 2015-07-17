@@ -123,6 +123,49 @@ fn intersect_ray_box(org: Vec3, idir: Vec3, tmin: f32, tmax: f32, min: Vec3, max
     intr(t0, t1)
 }
 
+type Real = f32;
+type Mask = bool;
+type Intr = i32;
+fn any(m: bool) -> bool { m }
+fn abs_real(r: f32) -> f32 { fabsf(r) }
+fn real(x: f32) -> f32 { x }
+
+fn mstore_real(m: Mask, mut dst: &Real, src: Real) -> () {
+    if m { *dst = src; }
+}
+
+fn mstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () {
+    if m { *dst = src; }
+}
+
+fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, v0: Vec3, v1: Vec3, v2: Vec3, intr: fn (Mask, Real) -> ()) -> () {
+    let e0 = vec3_sub(v1, v0);
+    let e1 = vec3_sub(v2, v0);
+    let pvec = vec3_cross(dir, e1);
+    let det = vec3_dot(e0, pvec);
+    let eps = real(1e-4f);
+    if any(abs_real(det) < eps) {
+        return()
+    }
+
+    let idet = real(1.0f) / det;
+    let tvec = vec3_sub(org, v0);
+    let u = vec3_dot(tvec, pvec) * idet;
+    let mut mask: Mask = u >= real(0.0f) & u <= real(1.0f);
+    if any(mask) {
+        let qvec = vec3_cross(tvec, e0);               
+        let v = vec3_dot(qvec, dir) * idet;
+        mask &= v >= real(0.0f) & u + v <= real(1.0f);
+        if any(mask) {
+            let t = vec3_dot(e1, qvec) * idet;
+            mask &= t >= tmin & t <= tmax;
+            if any(mask) {
+                intr(mask, t);
+            }
+        }
+    }
+}
+/*
 fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: f32, tmax: f32, v0: Vec3, v1: Vec3, v2: Vec3, intr: fn (f32) -> ()) -> () {
     let e0 = vec3_sub(v1, v0);
     let e1 = vec3_sub(v2, v0);
@@ -146,7 +189,7 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: f32, tmax: f32, v0: Vec3, v1: V
             }
         }
     }
-}
+}*/
 
 fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (i32, Vec3, Vec3, Vec3) -> ()) -> () {
     let mut loop_id = !node_id;
@@ -252,9 +295,9 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
             // Intersect leaves
             while node_id < 0 {
                 for id, v0, v1, v2 in iterate_triangles(nodes, tris, node_id) {
-                    intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |dist| {
-                        t = dist;
-                        tri = id;
+                    intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |mask, dist| {
+                        mstore_real(mask, &t, dist);
+                        mstore_intr(mask, &tri, id);
                     });
                 }
 
