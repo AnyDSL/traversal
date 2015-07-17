@@ -71,20 +71,14 @@ static block_w = 32;
 static block_h = 4;
 
 extern "C" {
+    fn fmin(f32, f32) -> f32;
+    fn fmax(f32, f32) -> f32;
     fn fmin_fmin(f32, f32, f32) -> f32;
     fn fmax_fmax(f32, f32, f32) -> f32;
     fn fmin_fmax(f32, f32, f32) -> f32;
     fn fmax_fmin(f32, f32, f32) -> f32;
     fn ldg4f(&simd[f32 * 4]) -> simd[f32 * 4];
     fn ldg4i(&simd[i32 * 4]) -> simd[i32 * 4];
-}
-
-fn fmax(a: f32, b: f32) -> f32 {
-     if a > b {a} else {b}  
-}
-
-fn fmin(a: f32, b: f32) -> f32 {
-     if a < b {a} else {b}  
 }
 
 fn span_begin(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32, g: f32) -> f32 {
