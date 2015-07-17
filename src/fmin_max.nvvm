@@ -1,19 +1,29 @@
-define float @fmax_fmax(float %a, float %b, float %c) {
+define float @max_real(float %a, float %b) {
+    %1 = call float asm "max.f32 $0, $1, $2;", "=f, f, f" (float %a, float %b)
+    ret float %1
+}
+
+define float @min_real(float %a, float %b) {
+    %1 = call float asm "min.f32 $0, $1, $2;", "=f, f, f" (float %a, float %b)
+    ret float %1
+}
+
+define float @maxmax_real(float %a, float %b, float %c) {
     %1 = call float asm "vmax.s32.s32.s32.max $0, $1, $2, $3;", "=r, r, r, r" (float %a, float %b, float %c)
     ret float %1
 }
 
-define float @fmin_fmin(float %a, float %b, float %c) {
+define float @minmin_real(float %a, float %b, float %c) {
     %1 = call float asm "vmin.s32.s32.s32.min $0, $1, $2, $3;", "=r, r, r, r" (float %a, float %b, float %c)
     ret float %1
 }
 
-define float @fmin_fmax(float %a, float %b, float %c) {
+define float @minmax_real(float %a, float %b, float %c) {
     %1 = call float asm "vmin.s32.s32.s32.max $0, $1, $2, $3;", "=r, r, r, r" (float %a, float %b, float %c)
     ret float %1
 }
 
-define float @fmax_fmin(float %a, float %b, float %c) {
+define float @maxmin_real(float %a, float %b, float %c) {
     %1 = call float asm "vmax.s32.s32.s32.min $0, $1, $2, $3;", "=r, r, r, r" (float %a, float %b, float %c)
     ret float %1
 }

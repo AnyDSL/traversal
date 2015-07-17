@@ -25,8 +25,8 @@ bool load_rays(const std::string& filename, Ray*& rays_ref, int& count, float tm
         rays_ref[i].dir.y = org_dir[4];
         rays_ref[i].dir.z = org_dir[5];
 
-        rays_ref[i].tmin = tmin;
-        rays_ref[i].tmax = tmax;
+        rays_ref[i].org.w = tmin;
+        rays_ref[i].dir.w = tmax;
     }
 
     return true;

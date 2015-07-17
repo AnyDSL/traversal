@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     auto reset_hits = [&] () {
         for (int i = 0; i < ray_count; i++) {
             hits[i].tri_id = -1;
-            hits[i].tmax = rays[i].tmax;        
+            hits[i].tmax = rays[i].dir.w;        
         }
     };
 

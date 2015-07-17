@@ -1,77 +1,128 @@
 // Mapping for packet tracing on the CPU
-struct RayPacket {
-    org: Vec3,
-    dir: Vec3,
-    inv: Vec3,
-    tri: Id,
-    tmin: Real,
-    tmax: Real,
-    u: Real,
-    v: Real
+static vector_size = 4;
+
+type Real = simd[f32 * 4];
+type Mask = simd[bool * 4];
+type Intr = simd[i32 * 4];
+type HitFn = fn (Intr, Real) -> ();
+
+fn mstore_real(m: Mask, mut dst: &Real, src: Real) -> () { *dst = select4f32(m, src, *dst); }
+fn mstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { *dst = select4i32(m, src, *dst); }
+fn real(x: f32) -> Real { simd[x, x, x, x] }
+fn intr(x: i32) -> Intr { simd[x, x, x, x] }
+
+extern "C" {
+    fn any(Mask) -> bool;
+    fn all(Mask) -> bool;
+    fn abs_real(Real) -> Real;
+    fn avg_real(Real) -> f32;
+    fn min_real(Real, Real) -> Real;
+    fn max_real(Real, Real) -> Real;
+    fn minmin_real(Real, Real, Real) -> Real;
+    fn maxmax_real(Real, Real, Real) -> Real;
+    fn minmax_real(Real, Real, Real) -> Real;
+    fn maxmin_real(Real, Real, Real) -> Real;
 }
 
-static postpone_count = 0;
+struct Node {
+    min_x: [f32 * 4],
+    min_y: [f32 * 4],
+    min_z: [f32 * 4],
+    max_x: [f32 * 4],
+    max_y: [f32 * 4],
+    max_z: [f32 * 4],
+    children: [i32 * 4]
+}
 
-fn iterate_rays(mut rays: Rays, i: i32, j: i32, body: fn(&RayPacket) -> ()) -> () {
-    assert(|| {(j - i) % vector_size == 0}, "iterate_rays : invalid number of rays");
+struct Hit {
+    tri_id: i32,
+    tmax: f32,
+    pad0: i32,
+    pad1: i32
+}
 
-    for k in range_step(i, j, vector_size) {
-        // Build a packet of rays of size 8 from the array
-        let mut packet : RayPacket;
+fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
+    let mut loop_id = !node_id;
+    while true {
+        let v0 = *(&tris(loop_id + 0) as &simd[f32 * 4]);
+        let v1 = *(&tris(loop_id + 1) as &simd[f32 * 4]);
+        let v2 = *(&tris(loop_id + 2) as &simd[f32 * 4]);
 
-        packet.org.x = load_real(&rays.org_x(k));
-        packet.org.y = load_real(&rays.org_y(k));
-        packet.org.z = load_real(&rays.org_z(k));
+        body(intr(loop_id),
+             vec3(real(v0(0)), real(v0(1)), real(v0(2))),
+             vec3(real(v1(0)), real(v1(1)), real(v1(2))),
+             vec3(real(v2(0)), real(v2(1)), real(v2(2))));
 
-        packet.dir.x = load_real(&rays.dir_x(k));
-        packet.dir.y = load_real(&rays.dir_y(k));
-        packet.dir.z = load_real(&rays.dir_z(k));
-
-        packet.inv.x = real(1.0f) / packet.dir.x;
-        packet.inv.y = real(1.0f) / packet.dir.y;
-        packet.inv.z = real(1.0f) / packet.dir.z;
-
-        packet.tri = load_id(&rays.tri(k));
-
-        packet.tmin = load_real(&rays.tmin(k));
-        packet.tmax = load_real(&rays.tmax(k));
-        packet.u = load_real(&rays.u(k));
-        packet.v = load_real(&rays.v(k));
-
-        // Traverse the BVH
-        body(&packet);
-
-        // Write results back to the array
-        store_id(&rays.tri(k), packet.tri);
-        store_real(&rays.tmax(k), packet.tmax);
-        store_real(&rays.u(k), packet.u);
-        store_real(&rays.v(k), packet.v);
+        loop_id += 3;
+        if tris(loop_id).x == -0.0f {
+            break()
+        }
     }
 }
 
-fn intersect_leaf(mut packet: &RayPacket, accel: Accel, node: i32) -> () {
-    // Test each ray of the packet against each triangle of the node
-    for tri, v0, v1, v2 in iterate_triangles(accel, node) {
-        intersect_ray_tri(packet.org, packet.dir, v0, v1, v2,
-            |t, u, v, intr| {
-                let mask = intr & t < packet.tmax & t > packet.tmin;
-                mask_store_id(mask, id(tri), &packet.tri);
-                mask_store_real(mask, t, &packet.tmax);
-                mask_store_real(mask, u, &packet.u);
-                mask_store_real(mask, v, &packet.v);
-                continue()
-            })
-    }
-}
+fn iterate_children(nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(Vec3, Vec3, fn (Mask, Real) -> ()) -> ()) -> () {
+    let mut t: [f32 * 4];
+    let mut next: [i32 * 4];
+    let mut k = 0;
 
-fn intersect_node(packet: &RayPacket, accel: Accel, node: i32, stack: &Stack) -> () {
-    // Intersect the children of this node
-    for min, max, push in iterate_children(accel, node, stack) {
-        intersect_ray_box(packet.org, packet.inv, min, max, |t_entry, t_exit, mask| {
-            if any(mask & packet.tmin < t_exit & packet.tmax > t_entry) {
-                push(t_entry)
+    let node = nodes(*node_id);
+    for i in range(0, 4) {
+        let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
+        let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
+        body(min, max, |hit, t0| {
+            if any(hit) {
+                t(k) = avg_real(t0);
+                next(k++) = node.children(i);
             }
-            continue()
-        })
+        });
+    }
+
+    if k == 0 { return() }
+    if k == 1 { *node_id = next(0); return() }
+
+    // Sort intersections
+    for i in range(0, k) {
+        let u = t(i);
+        let n = next(i);
+
+        let mut j = i + 1;
+        while j < k && t(j) < u {
+            t(i) = t(j);
+            next(i) = next(j);
+            j++;
+        }
+
+        t(j - 1) = u;
+        next(j - 1) = n;
+    }
+
+    // Push them
+    for i in range(1, k) {
+        push(stack, next(i))    
+    }
+    *node_id = next(0);
+}
+
+fn iterate_rays(rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, Real, Real, HitFn) -> ()) -> () {
+    assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
+
+    for i in range_step(0, ray_count, vector_size) {
+        let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x],
+                       simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y],
+                       simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z]);
+        let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x],
+                       simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y],
+                       simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z]);
+        let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w];
+        let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w];
+
+        @body(org, dir, tmin, tmax, |tri, t| {
+            for j in range(0, vector_size) {
+                if tri(j) > 0 {
+                    hits(i + j).tri_id = tri(j);
+                    hits(i + j).tmax = t(j)
+                }
+            }
+        });
     }
 }
