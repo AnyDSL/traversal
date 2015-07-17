@@ -75,6 +75,8 @@ extern "C" {
     fn fmax_fmax(f32, f32, f32) -> f32;
     fn fmin_fmax(f32, f32, f32) -> f32;
     fn fmax_fmin(f32, f32, f32) -> f32;
+    fn ldg4f(&simd[f32 * 4]) -> simd[f32 * 4];
+    fn ldg4i(&simd[i32 * 4]) -> simd[i32 * 4];
 }
 
 fn fmax(a: f32, b: f32) -> f32 {
@@ -173,10 +175,10 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (
 
 fn iterate_children(mut nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(Vec3, Vec3, fn (bool, f32) -> ()) -> ()) -> () {
     let mut node_ptr = &nodes(*node_id) as &[f32];
-    let bb0 = *(&node_ptr(0) as &simd[f32 * 4]);
-    let bb1 = *(&node_ptr(4) as &simd[f32 * 4]);
-    let bb2 = *(&node_ptr(8) as &simd[f32 * 4]);
-    let children = *(&node_ptr(12) as &simd[i32 * 4]);
+    let bb0 = ldg4f(&node_ptr(0) as &simd[f32 * 4]);
+    let bb1 = ldg4f(&node_ptr(4) as &simd[f32 * 4]);
+    let bb2 = ldg4f(&node_ptr(8) as &simd[f32 * 4]);
+    let children = ldg4i(&node_ptr(12) as &simd[i32 * 4]);
 
     let mut t : [f32 * 2];
     let mut next : [i32 * 2];
@@ -219,8 +221,8 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Ve
         }
 
         let mut ray_ptr = &rays(id) as &[f32];
-        let ray0 = *(&ray_ptr(0) as &simd[f32 * 4]);
-        let ray1 = *(&ray_ptr(4) as &simd[f32 * 4]);
+        let ray0 = ldg4f(&ray_ptr(0) as &simd[f32 * 4]);
+        let ray1 = ldg4f(&ray_ptr(4) as &simd[f32 * 4]);
 
         @body(vec3(ray0(0), ray0(1), ray0(2)),
               vec3(ray1(0), ray1(1), ray1(2)),
