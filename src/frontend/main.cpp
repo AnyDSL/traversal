@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
 
     Node* nodes;
     Vec4* tris;
-    if (!load_bvh(accel_file, nodes, tris)) {
+    if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
     }

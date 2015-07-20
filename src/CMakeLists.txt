@@ -1,5 +1,4 @@
 set(FRONTEND_SRCS
-    frontend/load_bvh.cpp
     frontend/load_rays.cpp
     frontend/main.cpp
     frontend/loaders.h
@@ -17,8 +16,10 @@ set(COMMON_SRCS
 
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(MAPPING_SRCS mappings/mapping_packet.impala)
+    set(FRONTEND_SRCS ${FRONTEND_SRCS} frontend/load_mbvh.cpp)
 elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
     set(MAPPING_SRCS mappings/mapping_gpu.impala)
+    set(FRONTEND_SRCS ${FRONTEND_SRCS} frontend/load_bvh.cpp)
 else()
     message(FATAL_ERROR "Backend not supported")
 endif()
@@ -37,7 +38,7 @@ thorin_runtime_wrap(IMPALA_OBJS IMPALA_LIBS
                     BACKEND ${BACKEND}
                     FILES ${IMPALA_SRCS})
 
-#set_source_files_properties(frontend/interface.h PROPERTIES GENERATED TRUE)
+set_source_files_properties(frontend/interface.h PROPERTIES GENERATED TRUE)
 
 add_executable(traversal ${IMPALA_OBJS} ${FRONTEND_SRCS})
 target_link_libraries(traversal ${IMPALA_LIBS})

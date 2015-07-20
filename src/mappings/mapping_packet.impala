@@ -15,14 +15,23 @@ extern "C" {
     fn any(Mask) -> bool;
     fn all(Mask) -> bool;
     fn abs_real(Real) -> Real;
-    fn avg_real(Real) -> f32;
-    fn min_real(Real, Real) -> Real;
-    fn max_real(Real, Real) -> Real;
-    fn minmin_real(Real, Real, Real) -> Real;
-    fn maxmax_real(Real, Real, Real) -> Real;
-    fn minmax_real(Real, Real, Real) -> Real;
-    fn maxmin_real(Real, Real, Real) -> Real;
+    fn float_as_int(f32) -> i32;
+    fn puts_flush(&[u8]) -> ();
+    fn put_int(i32) -> ();
 }
+
+fn sum_real(x: Real) -> f32 {
+    let y = shuffle4f32(x, x, simd[2, 3, 0, 1]);
+    let z = x + y;
+    z(0) + z(1)
+}
+
+fn min_real(a: Real, b: Real) -> Real { select4f32(a < b, a, b) }
+fn max_real(a: Real, b: Real) -> Real { select4f32(a > b, a, b) }
+fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
+fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
+fn minmax_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
+fn maxmin_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
 
 struct Node {
     min_x: [f32 * 4],
@@ -52,9 +61,8 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (
              vec3(real(v0(0)), real(v0(1)), real(v0(2))),
              vec3(real(v1(0)), real(v1(1)), real(v1(2))),
              vec3(real(v2(0)), real(v2(1)), real(v2(2))));
-
         loop_id += 3;
-        if tris(loop_id).x == -0.0f {
+        if float_as_int(tris(loop_id).x) == 0x80000000 {
             break()
         }
     }
@@ -67,17 +75,20 @@ fn iterate_children(nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(V
 
     let node = nodes(*node_id);
     for i in range(0, 4) {
-        let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
+        if node.children(i) == 0 { break() }
+        /*let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
         let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
         body(min, max, |hit, t0| {
             if any(hit) {
-                t(k) = avg_real(t0);
+                t(k) = sum_real(t0);
                 next(k++) = node.children(i);
             }
-        });
+        });*/
+        t(k) = 0.f;
+        next(k++) = node.children(i);
     }
 
-    if k == 0 { return() }
+    if k == 0 { *node_id = pop(stack); return() }
     if k == 1 { *node_id = next(0); return() }
 
     // Sort intersections
@@ -98,7 +109,7 @@ fn iterate_children(nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(V
 
     // Push them
     for i in range(1, k) {
-        push(stack, next(i))    
+        push(stack, next(i))
     }
     *node_id = next(0);
 }
@@ -120,7 +131,7 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, 
             for j in range(0, vector_size) {
                 if tri(j) > 0 {
                     hits(i + j).tri_id = tri(j);
-                    hits(i + j).tmax = t(j)
+                    hits(i + j).tmax = t(j);
                 }
             }
         });
