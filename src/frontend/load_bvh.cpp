@@ -61,7 +61,6 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     std::vector<Node> node_stack;
     std::vector<Vec4> tri_stack;
     union { unsigned int i; float f; } sentinel = { 0x80000000 };
-    Vec4 tri_sentinel = { sentinel.f, sentinel.f, sentinel.f, sentinel.f };
 
     auto leaf_node = [&] (const bvh::node& node) {
         int node_id = ~(tri_stack.size());
@@ -77,7 +76,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
             tri_stack.push_back(v1);
             tri_stack.push_back(v2);
         }
-        tri_stack.push_back(tri_sentinel);
+        tri_stack.back().w = sentinel.f;
         return node_id;
     };
 
@@ -135,9 +134,6 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
         node_stack[top.dst_id].left = left_id;
         node_stack[top.dst_id].right = right_id;
     }
-
-    tri_stack.push_back(tri_sentinel);
-    tri_stack.push_back(tri_sentinel);
 
     nodes_ref = thorin_new<Node>(node_stack.size());
     std::copy(node_stack.begin(), node_stack.end(), nodes_ref);

@@ -65,10 +65,11 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (
              vec3(v1(0), v1(1), v1(2)),
              vec3(v2(0), v2(1), v2(2)));
 
-        loop_id += 3;
-        if float_as_int(tris(loop_id).x) == 0x80000000 {
+        if float_as_int(v2(3)) == 0x80000000 {
             break()
         }
+
+        loop_id += 3;
     }
 }
 
