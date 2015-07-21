@@ -26,7 +26,7 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
         // Traversal loop
         while (node_id as u32) < sentinel {
             // Intersect children and update stack
-            for min, max, hit in iterate_children(nodes, &stack, &node_id) {
+            for min, max, hit in @iterate_children(nodes, &stack, &node_id) {
                 intersect_ray_box(org, idir, tmin, t, min, max, |t0, t1| {
                     hit(t0 <= t1, t0)
                 });
