@@ -15,4 +15,3 @@ static dbl_radix = 2;
 static dbl_pi = 3.14159265359;
 static dbl_sqrt2 = 1.41421356237;
 static dbl_sqrt3 = 1.73205080757;
-

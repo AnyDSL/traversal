@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
 
     Node* nodes;
     Vec4* tris;
-    if (!load_bvh(accel_file, nodes, tris)) {
+    if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
     }
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     auto reset_hits = [&] () {
         for (int i = 0; i < ray_count; i++) {
             hits[i].tri_id = -1;
-            hits[i].tmax = rays[i].tmax;        
+            hits[i].tmax = rays[i].dir.w;        
         }
     };
 

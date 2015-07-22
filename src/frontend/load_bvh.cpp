@@ -4,6 +4,8 @@
 #include "thorin_runtime.h"
 #include "interface.h"
 
+namespace bvh {
+
 struct hdr {
     int node_count;
     int prim_count;
@@ -28,16 +30,18 @@ struct stack_entry {
     int dst_id;
 };
 
-bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
+}
+
+bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
     if (!in) return false;
 
-    hdr h;
-    in.read((char*)&h, sizeof(hdr));
+    bvh::hdr h;
+    in.read((char*)&h, sizeof(bvh::hdr));
 
     // Read nodes
-    std::vector<node> nodes(h.node_count);
-    in.read((char*)nodes.data(), sizeof(node) * h.node_count);
+    std::vector<bvh::node> nodes(h.node_count);
+    in.read((char*)nodes.data(), sizeof(bvh::node) * h.node_count);
 
     // Read bvh primitive indices
     std::vector<int> prim_ids(h.prim_count);
@@ -56,9 +60,9 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
 
     std::vector<Node> node_stack;
     std::vector<Vec4> tri_stack;
-    Vec4 tri_sentinel = { -0.0f, -0.0f, -0.0f, -0.0f };
+    union { unsigned int i; float f; } sentinel = { 0x80000000 };
 
-    auto leaf_node = [&] (const node& node) {
+    auto leaf_node = [&] (const bvh::node& node) {
         int node_id = ~(tri_stack.size());
         for (int i = 0; i < node.prim_count; i++) {
             int tri_id = prim_ids[i + node.child_first];
@@ -72,23 +76,23 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
             tri_stack.push_back(v1);
             tri_stack.push_back(v2);
         }
-        tri_stack.push_back(tri_sentinel);
+        tri_stack.back().w = sentinel.f;
         return node_id;
     };
 
-    std::vector<stack_entry> stack;
-    stack.push_back(stack_entry(0, 0));
+    std::vector<bvh::stack_entry> stack;
+    stack.push_back(bvh::stack_entry(0, 0));
     node_stack.push_back(Node());
 
     while (!stack.empty()) {
-        stack_entry top = stack.back();
-        const node& n = nodes[top.node_id];
+        bvh::stack_entry top = stack.back();
+        const bvh::node& n = nodes[top.node_id];
         stack.pop_back();
 
         if (n.prim_count > 0) continue;
 
-        const node& left = nodes[n.child_first];
-        const node& right = nodes[n.child_first + 1];
+        const bvh::node& left = nodes[n.child_first];
+        const bvh::node& right = nodes[n.child_first + 1];
 
         int left_id;
         if (left.prim_count > 0) {
@@ -96,7 +100,7 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
         } else {
             left_id = node_stack.size();
             node_stack.push_back(Node());
-            stack.push_back(stack_entry(n.child_first, left_id));
+            stack.push_back(bvh::stack_entry(n.child_first, left_id));
         }
 
         int right_id;
@@ -105,7 +109,7 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
         } else {
             right_id = node_stack.size();
             node_stack.push_back(Node());
-            stack.push_back(stack_entry(n.child_first + 1, right_id));
+            stack.push_back(bvh::stack_entry(n.child_first + 1, right_id));
         }
 
         BBox& left_bb = node_stack[top.dst_id].left_bb;
@@ -130,9 +134,6 @@ bool load_bvh(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
         node_stack[top.dst_id].left = left_id;
         node_stack[top.dst_id].right = right_id;
     }
-
-    tri_stack.push_back(tri_sentinel);
-    tri_stack.push_back(tri_sentinel);
 
     nodes_ref = thorin_new<Node>(node_stack.size());
     std::copy(node_stack.begin(), node_stack.end(), nodes_ref);

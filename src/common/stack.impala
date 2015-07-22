@@ -1,30 +1,45 @@
 struct Stack {
-    data: [i32 * 32],
-    id: i32
+    push: fn (fn (i32) -> i32, i32) -> (),
+    pop: fn () -> (),
+    top: fn () -> i32,
+    is_empty: fn () -> bool
 }
 
-fn empty_stack() -> Stack {
-    let mut stack : Stack;
-    stack.id = -1;
-    stack
-}
+fn is_leaf(nodes: &[Node], node_id: i32) -> bool { node_id < 0 }
 
-fn stack_size(stack: &Stack) -> i32 {
-    stack.id + 1
-}
+fn allocate_stack() -> Stack {
+    let mut stack : [i32 * 64];
+    let mut id = 0;  // Stack top index
+    let mut cur = 0; // Root node
+    let sentinel = 0x76543210u32;
 
-fn is_empty(stack: &Stack) -> bool {
-    stack.id < 0
-}
+    stack(0) = sentinel as i32;
 
-fn push_node(mut stack: &Stack, id: i32) -> () {
-    stack.id++;
-    stack.data(stack.id) = id
-}
+    fn push(k: fn (i32) -> i32, n: i32) -> () {
+        for i in range(0, n - 1) {
+            id++;
+            stack(id) = k(i);
+        }
+        cur = k(n - 1);
+    }
 
-fn pop_node(mut stack: &Stack) -> i32 {
-    let top = stack.data(stack.id);
-    stack.id--;
-    top
-}
+    fn pop() -> () {
+        cur = stack(id);
+        id--;
+    }
 
+    fn top() -> i32 {
+        cur
+    }
+
+    fn is_empty() -> bool {
+        cur == sentinel as i32
+    }
+
+    Stack {
+        push: push,
+        pop: pop,
+        top: top,
+        is_empty: is_empty
+    }
+}

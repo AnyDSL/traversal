@@ -1,59 +1,49 @@
-// Moeller-Trumbore triangle intersection algorithm
-fn intersect_ray_tri(org: Vec3, dir: Vec3, v0: Vec3, v1: Vec3, v2: Vec3, intr: fn (Real, Real, Real, Intr), nointr: fn()) {
-    let e0 = @vec3_sub(v1, v0);
-    let e1 = @vec3_sub(v2, v0);
-
-    let pvec = @vec3_cross(dir, e1);
-    let det = @vec3_dot(e0, pvec);
-
-    let epsilon = real(0.0001f);
-
-    let mut mask = det < -epsilon | det > epsilon;
-    if !any(mask) @{
-        nointr()
-    }
-
-    let inv_det = real(1.0f) / det;
-
-    let tvec = @vec3_sub(org, v0);
-    let u = @vec3_dot(tvec, pvec) * inv_det;
-
-    mask &= u > real(0.0f) & u < real(1.0f);
-    if !any(mask) @{
-        nointr()
-    }
-
-    let qvec = @vec3_cross(tvec, e0);
-    let v = @vec3_dot(dir, qvec) * inv_det;
-
-    mask &= v > real(0.0f) & u + v < real(1.0f);
-    if !any(mask) @{
-        nointr()
-    }
-
-    let t = @vec3_dot(e1, qvec) * inv_det;
-
-    @intr(t, u, v, mask)
-}
-
 // SLABS ray box intersection test
-fn intersect_ray_box(org: Vec3, inv: Vec3, min: Vec3, max: Vec3, tmin: Real, tmax: Real, intr: fn (Real, Real, Intr), nointr: fn()) {
-    let tmin_x = (min.x - org.x) * inv.x;
-    let tmax_x = (max.x - org.x) * inv.x;
-
-    let tmin_y = (min.y - org.y) * inv.y;
-    let tmax_y = (max.y - org.y) * inv.y;
-
-    let tmin_z = (min.z - org.z) * inv.z;
-    let tmax_z = (max.z - org.z) * inv.z;
-
-    let t0 = fmax_fmax(fmin(tmin_x, tmax_x), fmin(tmin_y, tmax_y), fmin_fmax(tmin_z, tmax_z, tmin));
-    let t1 = fmin_fmin(fmax(tmin_x, tmax_x), fmax(tmin_y, tmax_y), fmax_fmin(tmin_z, tmax_z, tmax));
-
-    let mask = t0 <= t1;
-    if any(mask) {
-        @intr(t0, t1, mask)
+fn intersect_ray_box(org: Vec3, idir: Vec3, tmin: Real, tmax: Real, min: Vec3, max: Vec3, intr: fn (Real, Real) -> ()) -> () {
+    fn span_begin(a: Real, b: Real, c: Real, d: Real, e: Real, f: Real, g: Real) -> Real {
+        maxmax_real(min_real(a, b), min_real(c, d), minmax_real(e, f, g))
     }
-    nointr()
+
+    fn span_end(a: Real, b: Real, c: Real, d: Real, e: Real, f: Real, g: Real) -> Real {
+        minmin_real(max_real(a, b), max_real(c, d), maxmin_real(e, f, g))
+    }
+
+    let t0_x = (min.x - org.x) * idir.x;
+    let t1_x = (max.x - org.x) * idir.x;
+    let t0_y = (min.y - org.y) * idir.y;
+    let t1_y = (max.y - org.y) * idir.y;
+    let t0_z = (min.z - org.z) * idir.z;
+    let t1_z = (max.z - org.z) * idir.z;
+    let t0 = span_begin(t0_x, t1_x, t0_y, t1_y, t0_z, t1_z, tmin);
+    let t1 = span_end(t0_x, t1_x, t0_y, t1_y, t0_z, t1_z, tmax);
+    intr(t0, t1)
 }
 
+// Moeller-Trumbore triangle intersection algorithm
+fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, v0: Vec3, v1: Vec3, v2: Vec3, intr: fn (Mask, Real) -> ()) -> () {
+    let e0 = vec3_sub(v1, v0);
+    let e1 = vec3_sub(v2, v0);
+    let pvec = vec3_cross(dir, e1);
+    let det = vec3_dot(e0, pvec);
+    let eps = real(1e-4f);
+    if all(abs_real(det) < eps) {
+        return()
+    }
+
+    let idet = real(1.0f) / det;
+    let tvec = vec3_sub(org, v0);
+    let u = vec3_dot(tvec, pvec) * idet;
+    let mut mask: Mask = u >= real(0.0f) & u <= real(1.0f);
+    if any(mask) {
+        let qvec = vec3_cross(tvec, e0);               
+        let v = vec3_dot(qvec, dir) * idet;
+        mask &= v >= real(0.0f) & u + v <= real(1.0f);
+        if any(mask) {
+            let t = vec3_dot(e1, qvec) * idet;
+            mask &= t >= tmin & t <= tmax;
+            if any(mask) {
+                intr(mask, t);
+            }
+        }
+    }
+}
