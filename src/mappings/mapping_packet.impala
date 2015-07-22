@@ -1,38 +1,7 @@
 // Mapping for packet tracing on the CPU
-static vector_size = 1;
+static vector_size = 4;
 
-type Real = f32;
-type Mask = bool;
-type Intr = i32;
-type HitFn = fn (Intr, Real) -> ();
-
-fn mstore_real(m: Mask, mut dst: &Real, src: Real) -> () { if m { *dst = src; } }
-fn mstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { if m { *dst = src; } }
-fn real(x: f32) -> Real { x }
-fn intr(x: i32) -> Intr { x }
-
-fn any(m: Mask) -> bool { m }
-fn all(m: Mask) -> bool { m }
-fn abs_real(r: Real) -> Real { fabsf(r) }
-
-fn min_real(a: Real, b: Real) -> Real { if a < b { a } else { b } }
-fn max_real(a: Real, b: Real) -> Real { if a > b { a } else { b } }
-fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
-fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
-fn minmax_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
-
-fn sum_real(x: Real) -> f32 { x }
-
-extern "C" {
-    fn float_as_int(f32) -> i32;
-    fn puts_flush(&[u8]) -> ();
-    fn put_int(i32) -> ();
-    fn put_float(f32) -> ();
-}
-
-
-/*type Real = f32;//simd[f32 * 4];
+type Real = simd[f32 * 4];
 type Mask = simd[bool * 4];
 type Intr = simd[i32 * 4];
 type HitFn = fn (Intr, Real) -> ();
@@ -43,17 +12,14 @@ fn real(x: f32) -> Real { simd[x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x] }
 
 extern "C" {
-    //fn any(Mask) -> bool;
-    //fn all(Mask) -> bool;
+    fn any(Mask) -> bool;
+    fn all(Mask) -> bool;
     fn abs_real(Real) -> Real;
     fn float_as_int(f32) -> i32;
     fn puts_flush(&[u8]) -> ();
     fn put_int(i32) -> ();
     fn put_float(f32) -> ();
 }
-
-fn any(hit: Mask) -> bool { hit(0) | hit(1) | hit(2) | hit(3) }
-fn all(hit: Mask) -> bool { hit(0) & hit(1) & hit(2) & hit(3) }
 
 fn sum_real(x: Real) -> f32 {
     let y = shuffle4f32(x, x, simd[2, 3, 0, 1]);
@@ -65,8 +31,8 @@ fn min_real(a: Real, b: Real) -> Real { select4f32(a < b, a, b) }
 fn max_real(a: Real, b: Real) -> Real { select4f32(a > b, a, b) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
-fn minmax_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }*/
+fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
+fn maxmin_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
 
 struct Node {
     min_x: [f32 * 4],
@@ -85,7 +51,7 @@ struct Hit {
     pad1: i32
 }
 
-fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
+fn iterate_triangles(nodes: &[Node], node_id: i32, tris: &[Vec4], body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
     let mut loop_id = !node_id;
     while true {
         let v0 = tris(loop_id + 0);
@@ -105,20 +71,16 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (
     }
 }
 
-fn iterate_children(nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(Vec3, Vec3, fn (Mask, Real) -> ()) -> ()) -> () {
+fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (Mask, Real) -> ()) -> ()) -> () {
     let mut t: [f32 * 4];
     let mut next: [i32 * 4];
     let mut k = 0;
 
-    let node = nodes(*node_id);
+    let node = nodes(node_id);
     for i in range(0, 4) {
         if node.children(i) == 0 { break() }
         let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
         let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
-
-        if node.children(i) > 0 && node.children(i) < *node_id {
-            puts_flush("PROBLEM");
-        }
 
         body(min, max, |hit, t0| {
             if any(hit) {
@@ -129,57 +91,48 @@ fn iterate_children(nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(V
         });
     }
 
-    if k == 0 { *node_id = pop(stack); return() }
-    if k == 1 { *node_id = next(0); return() }
+    if k == 0 { stack.pop(); }
+    else if k == 1 { stack.push(|i| { next(i) }, 1); }
+    else {
+        // Sort intersections
+        for i in range(1, k) {
+            let u = t(i);
+            let n = next(i);
 
-    // Sort intersections
-    for i in range(1, k) {
-        let u = t(i);
-        let n = next(i);
+            let mut j = i;
+            while j >= 0 && t(j) < u {
+                t(j) = t(j - 1);
+                next(j) = next(j - 1);
+                j--;
+            }
 
-        let mut j = i;
-        while j >= 0 && t(j) > u {
-            t(j) = t(j - 1);
-            next(j) = next(j - 1);
-            j--;
+            t(j) = u;
+            next(j) = n;
         }
 
-        t(j) = u;
-        next(j) = n;
+        stack.push(|i| { next(i) }, k)
     }
-
-    // Push them
-    for i in brange(k - 1, 0) {
-        push(stack, next(i))
-    }
-    *node_id = next(0);
 }
 
 fn iterate_rays(rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, Real, Real, HitFn) -> ()) -> () {
     assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
     for i in range_step(0, ray_count, vector_size) {
-        /*let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x],
+        let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x],
                        simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y],
                        simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z]);
         let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x],
                        simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y],
                        simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z]);
         let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w];
-        let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w];*/
-        let org = vec3(rays(i + 0).org.x,
-                       rays(i + 0).org.y,
-                       rays(i + 0).org.z);
-        let dir = vec3(rays(i + 0).dir.x,
-                       rays(i + 0).dir.y,
-                       rays(i + 0).dir.z);
-        let tmin = rays(i + 0).org.w;
-        let tmax = rays(i + 0).dir.w;
+        let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w];
 
         @body(org, dir, tmin, tmax, |tri, t| {
-            if tri > 0 {
-                hits(i).tri_id = tri;
-                hits(i).tmax = t;
+            if any(tri >= intr(0)) {
+                for j in range(0, vector_size) {
+                    hits(i + j).tri_id = tri(j);
+                    hits(i + j).tmax = t(j);
+                }
             }
         });
     }

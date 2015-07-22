@@ -71,7 +71,7 @@ __device__ __inline__ float fmax_fmax (float a, float b, float c) { return __int
 declare i32 @llvm.x86.sse.movmsk.ps(<4 x float>) nounwind readnone
 
 define i1 @any(<4 x i1> %x) {
-    %1 = zext <4 x i1> %x to <4 x i32>
+    %1 = sext <4 x i1> %x to <4 x i32>
     %2 = bitcast <4 x i32> %1 to <4 x float>
     %3 = tail call i32 @llvm.x86.sse.movmsk.ps(<4 x float> %2)
     %4 = icmp ne i32 0, %3
@@ -86,7 +86,7 @@ define <4 x float> @abs_real(<4 x float> %x) {
 }
 
 define i1 @all(<4 x i1> %x) {
-    %1 = zext <4 x i1> %x to <4 x i32>
+    %1 = sext <4 x i1> %x to <4 x i32>
     %2 = bitcast <4 x i32> %1 to <4 x float>
     %3 = tail call i32 @llvm.x86.sse.movmsk.ps(<4 x float> %2)
     %4 = icmp eq i32 15, %3

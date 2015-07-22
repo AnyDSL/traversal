@@ -53,7 +53,7 @@ struct Hit {
     pad1: i32
 }
 
-fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (i32, Vec3, Vec3, Vec3) -> ()) -> () {
+fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (i32, Vec3, Vec3, Vec3) -> ()) -> () {
     let mut loop_id = !node_id;
     while true {
         let v0 = *(&tris(loop_id + 0) as &simd[f32 * 4]);
@@ -73,8 +73,8 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4], node_id: i32, body: fn (
     }
 }
 
-fn iterate_children(mut nodes: &[Node], stack: &Stack, mut node_id: &i32, body: fn(Vec3, Vec3, fn (bool, f32) -> ()) -> ()) -> () {
-    let mut node_ptr = &nodes(*node_id) as &[f32];
+fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (bool, f32) -> ()) -> ()) -> () {
+    let mut node_ptr = &nodes(node_id) as &[f32];
     let bb0 = ldg4f(&node_ptr(0) as &simd[f32 * 4]);
     let bb1 = ldg4f(&node_ptr(4) as &simd[f32 * 4]);
     let bb2 = ldg4f(&node_ptr(8) as &simd[f32 * 4]);
@@ -97,12 +97,17 @@ fn iterate_children(mut nodes: &[Node], stack: &Stack, mut node_id: &i32, body: 
     });
 
     if !intr(0) && !intr(1) {
-        // Pop from the stack
-        *node_id = pop(stack);
+        stack.pop();
     } else {
-        *node_id = if intr(0) { next(0) } else { next(1) };
         if intr(0) && intr(1) {
-            push(stack, if t(1) < t(0) { *node_id = next(1); next(0) } else { next(1) });
+            if t(0) < t(1) {
+                next(0) ^= next(1);
+                next(1) ^= next(0);
+                next(0) ^= next(1);
+            }
+            stack.push(|i| { next(i) }, 2)
+        } else {
+            stack.push(|i| { if intr(0) { next(0) } else { next(1) } }, 1)
         }
     }
 }

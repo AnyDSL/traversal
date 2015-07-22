@@ -11,30 +11,27 @@ struct Vec4 {
 }
 
 extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hit], ray_count: i32) -> () {
-    let sentinel = 0x76543210u32;
     for org, dir, tmin, tmax, record_hit in iterate_rays(rays, hits, ray_count) {
-        // Initialize traversal variables
-        let mut stack = empty_stack();
-        let mut node_id = 0;
+        // Allocate a stack for the traversal
+        let stack = allocate_stack();
 
+        // Initialize traversal variables
         let idir = vec3(real(1.0f) / dir.x, real(1.0f) / dir.y, real(1.0f) / dir.z);
         let mut t = tmax;
-        let mut tri = intr(-1);
-
-        stack.data(0) = sentinel as i32;
+        let mut tri = intr(-1);            
 
         // Traversal loop
-        while (node_id as u32) < sentinel {
+        while !stack.is_empty() {
             // Intersect children and update stack
-            for min, max, hit in @iterate_children(nodes, &stack, &node_id) {
+            for min, max, hit in @iterate_children(nodes, stack.top(), stack) {
                 intersect_ray_box(org, idir, tmin, t, min, max, |t0, t1| {
                     hit(t0 <= t1, t0)
                 });
             }
 
             // Intersect leaves
-            while node_id < 0 {
-                for id, v0, v1, v2 in iterate_triangles(nodes, tris, node_id) {
+            while is_leaf(nodes, stack.top()) {
+                for id, v0, v1, v2 in iterate_triangles(nodes, stack.top(), tris) {
                     intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |mask, dist| {
                         mstore_real(mask, &t, dist);
                         mstore_intr(mask, &tri, id);
@@ -42,7 +39,7 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
                 }
 
                 // Pop node from the stack
-                node_id = pop(&stack);
+                stack.pop();
             }
         }
 
