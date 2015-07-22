@@ -1,4 +1,5 @@
 set(FRONTEND_SRCS
+    frontend/bvh_file.h
     frontend/load_rays.cpp
     frontend/main.cpp
     frontend/loaders.h

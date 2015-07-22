@@ -7,8 +7,8 @@ type Mask = bool;
 type Intr = i32;
 type HitFn = fn (Intr, Real) -> ();
 
-fn mstore_real(m: Mask, mut dst: &Real, src: Real) -> () { if m { *dst = src; } }
-fn mstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { if m { *dst = src; } }
+fn maskstore_real(m: Mask, mut dst: &Real, src: Real) -> () { if m { *dst = src; } }
+fn maskstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { if m { *dst = src; } }
 fn real(x: f32) -> Real { x }
 fn intr(x: i32) -> Intr { x }
 
@@ -42,13 +42,6 @@ struct Node {
     right_bb: BBox,
     left: i32,
     right: i32,
-    pad0: i32,
-    pad1: i32
-}
-
-struct Hit {
-    tri_id: i32,
-    tmax: f32,
     pad0: i32,
     pad1: i32
 }

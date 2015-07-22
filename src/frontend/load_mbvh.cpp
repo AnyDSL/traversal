@@ -3,47 +3,21 @@
 #include <fstream>
 #include "thorin_runtime.h"
 #include "interface.h"
-
-namespace mbvh {
-
-struct bbox {
-    float lx, ly, lz;
-    float ux, uy, uz;
-};
-
-struct hdr {
-    unsigned int magic;
-    unsigned int node_count;
-    unsigned int vert_count;
-    bbox scene_bb;
-};
-
-struct node {
-    bbox bb[4];
-    int children[4];
-    int prim_count[4];
-};
-
-}
-
-extern "C" {
-    void put_int(int i) { printf("%d\n", i); fflush(stdout); }
-    void put_float(float f) { printf("%f\n", f); fflush(stdout); }
-    void puts_flush(const char* c) { puts(c); fflush(stdout); }
-}
+#include "bvh_file.h"
 
 bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
-    if (!in) return false;
+    if (!in || !io::check_header(in) ||
+        !io::locate_block(in, io::MBVH)) {
+        return false;
+    }
 
-    mbvh::hdr h;
-    in.read((char*)&h, sizeof(mbvh::hdr));
-
-    if (h.magic != 0x312F1A56) return false;
+    io::mbvh::Header h;
+    in.read((char*)&h, sizeof(io::mbvh::Header));
 
     // Read nodes
-    std::vector<mbvh::node> nodes(h.node_count);
-    in.read((char*)nodes.data(), sizeof(mbvh::node) * h.node_count);
+    std::vector<io::mbvh::Node> nodes(h.node_count);
+    in.read((char*)nodes.data(), sizeof(io::mbvh::Node) * h.node_count);
 
     // Read vertices
     std::vector<float> vertices(3 * h.vert_count);
@@ -53,7 +27,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     std::vector<Vec4> tri_stack;
     union { unsigned int i; float f; } sentinel = { 0x80000000 };
 
-    auto leaf_node = [&] (const mbvh::node& node, int c) {
+    auto leaf_node = [&] (const io::mbvh::Node& node, int c) {
         int node_id = ~(tri_stack.size());
         for (int i = 0; i < node.prim_count[c]; i++) {
             int i0 = node.children[c] + i * 3, i1 = i0 + 1, i2 = i0 + 2;
@@ -69,7 +43,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     };
 
     for (int i = 0; i < h.node_count; i++) {
-        const mbvh::node& src_node = nodes[i];
+        const io::mbvh::Node& src_node = nodes[i];
         Node dst_node;
         int k = 0;
         for (int j = 0  ; j < 4; j++) {
@@ -107,12 +81,6 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
             dst_node.max_z[k] = -1.0f;
 
             dst_node.children[k] = 0;
-        }
-
-        for (int c = 0; c < 4; c++) {
-            if (dst_node.children[c] > 0 && dst_node.children[c] < i) {
-                printf("BUG\n");
-            }
         }
 
         node_stack.push_back(dst_node);

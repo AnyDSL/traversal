@@ -10,6 +10,13 @@ struct Vec4 {
     w: f32
 }
 
+struct Hit {
+    tri_id: i32,
+    tmax: f32,
+    pad0: i32,
+    pad1: i32
+}
+
 extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hit], ray_count: i32) -> () {
     for org, dir, tmin, tmax, record_hit in iterate_rays(rays, hits, ray_count) {
         // Allocate a stack for the traversal
@@ -33,8 +40,8 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
             while is_leaf(nodes, stack.top()) {
                 for id, v0, v1, v2 in iterate_triangles(nodes, stack.top(), tris) {
                     intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |mask, dist| {
-                        mstore_real(mask, &t, dist);
-                        mstore_intr(mask, &tri, id);
+                        maskstore_real(mask, &t, dist);
+                        maskstore_intr(mask, &tri, id);
                     });
                 }
 

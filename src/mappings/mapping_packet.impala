@@ -6,8 +6,8 @@ type Mask = simd[bool * 4];
 type Intr = simd[i32 * 4];
 type HitFn = fn (Intr, Real) -> ();
 
-fn mstore_real(m: Mask, mut dst: &Real, src: Real) -> () { *dst = select4f32(m, src, *dst); }
-fn mstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { *dst = select4i32(m, src, *dst); }
+fn maskstore_real(m: Mask, mut dst: &Real, src: Real) -> () { *dst = select4f32(m, src, *dst); }
+fn maskstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { *dst = select4i32(m, src, *dst); }
 fn real(x: f32) -> Real { simd[x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x] }
 
@@ -16,9 +16,6 @@ extern "C" {
     fn all(Mask) -> bool;
     fn abs_real(Real) -> Real;
     fn float_as_int(f32) -> i32;
-    fn puts_flush(&[u8]) -> ();
-    fn put_int(i32) -> ();
-    fn put_float(f32) -> ();
 }
 
 fn sum_real(x: Real) -> f32 {
@@ -42,13 +39,6 @@ struct Node {
     max_y: [f32 * 4],
     max_z: [f32 * 4],
     children: [i32 * 4]
-}
-
-struct Hit {
-    tri_id: i32,
-    tmax: f32,
-    pad0: i32,
-    pad1: i32
 }
 
 fn iterate_triangles(nodes: &[Node], node_id: i32, tris: &[Vec4], body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
