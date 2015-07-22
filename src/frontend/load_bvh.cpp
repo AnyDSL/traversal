@@ -4,24 +4,8 @@
 #include "thorin_runtime.h"
 #include "interface.h"
 
-namespace bvh {
+#include "bvh_file_info.hpp"
 
-struct hdr {
-    int node_count;
-    int prim_count;
-    int vert_count;
-    int norm_count;
-    int tex_count;
-    int mat_count;
-};
-
-struct node {
-    float min[3];
-    float max[3];
-    int child_first;
-    unsigned short prim_count;
-    unsigned short axis;
-};
 
 struct stack_entry {
     stack_entry() {}
@@ -30,39 +14,72 @@ struct stack_entry {
     int dst_id;
 };
 
-}
-
 bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
-    std::ifstream in(filename, std::ifstream::binary);
-    if (!in) return false;
-
-    bvh::hdr h;
-    in.read((char*)&h, sizeof(bvh::hdr));
-
-    // Read nodes
-    std::vector<bvh::node> nodes(h.node_count);
-    in.read((char*)nodes.data(), sizeof(bvh::node) * h.node_count);
-
-    // Read bvh primitive indices
-    std::vector<int> prim_ids(h.prim_count);
-    in.read((char*)prim_ids.data(), sizeof(int) * h.prim_count);
-
-    // Read vertices
-    std::vector<float> vertices(3 * h.vert_count);
-    in.read((char*)vertices.data(), sizeof(float) * 3 * h.vert_count);
     
-    // Skip normals = 3 * float * verts, texcoords = 2 * float * verts, materials = int * prims
-    in.seekg(sizeof(float) * 5 * h.vert_count + sizeof(int) * h.prim_count, std::ifstream::cur);
+    FILE *in = NULL;
+    in = fopen(filename.c_str(), "rb");
+    if (!in) {  
+        return false;
+    }
 
-    // Read triangle vertices indices
-    std::vector<int> tri_ids(h.prim_count * 3);
-    in.read((char*)tri_ids.data(), sizeof(int) * 3 * h.prim_count);
+    //Check Magic Number
+    int magic=0;
+    fread(&magic, sizeof(int), 1, in);
+ 
+
+    if(magic != io::bvh_file_magic_number) {
+        fclose(in);
+        return false;
+    }
+
+
+    std::vector<io::bvh::node> nodes;
+    std::vector<int> prim_ids;
+    std::vector<float> vertices;
+    std::vector<int> tri_ids;
+
+    while(!feof(in)) {
+        long next=0;
+        fread(&next, sizeof(long), 1, in);
+
+        io::Data_Block_Type type;
+        fread(&type, sizeof(io::Data_Block_Type), 1, in);
+
+        if(type == io::Data_Block_Type::BVH) {
+            //Read file header
+            io::bvh::hdr h;
+            fread( (char*)&h, sizeof (io::bvh::hdr), 1, in);
+
+            // Read nodes
+            nodes.resize(h.node_count);
+            fread((char*) nodes.data(), sizeof(io::bvh::node), h.node_count, in);
+
+            // Read bvh primitive indices            
+            prim_ids.resize(h.prim_count); 
+            fread( (char*) prim_ids.data(), sizeof(int), h.prim_count, in);
+
+            // Read vertices
+            vertices.resize(3 * h.vert_count);
+            fread((char*)vertices.data(), sizeof(float), 3 * h.vert_count, in);
+             
+            // Read triangle vertices indices
+            tri_ids.resize(h.prim_count * 3);
+            fread((char*)tri_ids.data(), sizeof(int), 3 * h.prim_count, in);
+
+            break;
+        } else {
+           fseek(in, next, SEEK_SET);
+        }
+
+    }
+    fclose(in);
+
 
     std::vector<Node> node_stack;
     std::vector<Vec4> tri_stack;
     union { unsigned int i; float f; } sentinel = { 0x80000000 };
 
-    auto leaf_node = [&] (const bvh::node& node) {
+    auto leaf_node = [&] (const io::bvh::node& node) {
         int node_id = ~(tri_stack.size());
         for (int i = 0; i < node.prim_count; i++) {
             int tri_id = prim_ids[i + node.child_first];
@@ -80,19 +97,19 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
         return node_id;
     };
 
-    std::vector<bvh::stack_entry> stack;
-    stack.push_back(bvh::stack_entry(0, 0));
+    std::vector<stack_entry> stack;
+    stack.push_back(stack_entry(0, 0));
     node_stack.push_back(Node());
 
     while (!stack.empty()) {
-        bvh::stack_entry top = stack.back();
-        const bvh::node& n = nodes[top.node_id];
+        stack_entry top = stack.back();
+        const io::bvh::node& n = nodes[top.node_id];
         stack.pop_back();
 
         if (n.prim_count > 0) continue;
 
-        const bvh::node& left = nodes[n.child_first];
-        const bvh::node& right = nodes[n.child_first + 1];
+        const io::bvh::node& left = nodes[n.child_first];
+        const io::bvh::node& right = nodes[n.child_first + 1];
 
         int left_id;
         if (left.prim_count > 0) {
@@ -100,7 +117,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
         } else {
             left_id = node_stack.size();
             node_stack.push_back(Node());
-            stack.push_back(bvh::stack_entry(n.child_first, left_id));
+            stack.push_back(stack_entry(n.child_first, left_id));
         }
 
         int right_id;
@@ -109,7 +126,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
         } else {
             right_id = node_stack.size();
             node_stack.push_back(Node());
-            stack.push_back(bvh::stack_entry(n.child_first + 1, right_id));
+            stack.push_back(stack_entry(n.child_first + 1, right_id));
         }
 
         BBox& left_bb = node_stack[top.dst_id].left_bb;
