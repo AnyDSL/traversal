@@ -18,9 +18,11 @@ set(COMMON_SRCS
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(MAPPING_SRCS mappings/mapping_packet.impala)
     set(FRONTEND_SRCS ${FRONTEND_SRCS} frontend/load_mbvh.cpp)
+    set(FRONTEND_DEFS "get_time=thorin_get_micro_time")
 elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
     set(MAPPING_SRCS mappings/mapping_gpu.impala)
     set(FRONTEND_SRCS ${FRONTEND_SRCS} frontend/load_bvh.cpp)
+    set(FRONTEND_DEFS "get_time=thorin_get_kernel_time")
 else()
     message(FATAL_ERROR "Backend not supported")
 endif()
@@ -43,4 +45,5 @@ set_source_files_properties(frontend/interface.h PROPERTIES GENERATED TRUE)
 
 add_executable(traversal ${IMPALA_OBJS} ${FRONTEND_SRCS})
 target_link_libraries(traversal ${IMPALA_LIBS})
+target_compile_definitions(traversal PUBLIC ${FRONTEND_DEFS})
 

@@ -6,6 +6,7 @@
 #include "interface.h"
 #include "loaders.h"
 #include "thorin_runtime.h"
+#include "thorin_utils.h"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -71,18 +72,25 @@ int main(int argc, char** argv) {
     }
 
     // Compute traversal time
-    std::chrono::high_resolution_clock::duration time(0);
+    std::vector<long long> iter_times(times);
     for (int i = 0; i < times; i++) {
         reset_hits();
-        auto t0 = std::chrono::high_resolution_clock::now();
+        long long t0 = get_time();
         traverse_accel(nodes, rays, tris, hits, ray_count);
-        auto t1 = std::chrono::high_resolution_clock::now();
-        time += t1 - t0;
+        long long t1 = get_time();
+        iter_times[i] = t1 - t0;
     }
 
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
-    std::cout << duration << "ms for " << times << " iteration(s)." << std::endl;
-    std::cout << ray_count * times * 1000.0 / duration << " rays/sec." << std::endl;
+    std::sort(iter_times.begin(), iter_times.end());
+
+    long long median = iter_times[times / 2];
+    long long sum = std::accumulate(iter_times.begin(), iter_times.end(), 0);
+    std::cout << sum / 1000.0 << "ms for " << times << " iteration(s)." << std::endl;
+    std::cout << ray_count * times * 1000000.0 / sum << " rays/sec." << std::endl;
+    std::cout << "Average: " << sum /1000.0 / times << " ms" << std::endl;
+    std::cout << "Median: " << median / 1000.0 << " ms" << std::endl;
+    std::cout << "Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
+
     
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
