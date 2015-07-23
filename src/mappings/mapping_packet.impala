@@ -6,8 +6,8 @@ type Mask = simd[bool * 4];
 type Intr = simd[i32 * 4];
 type HitFn = fn (Intr, Real) -> ();
 
-fn maskstore_real(m: Mask, mut dst: &Real, src: Real) -> () { *dst = select4f32(m, src, *dst); }
-fn maskstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { *dst = select4i32(m, src, *dst); }
+fn select_real(m: Mask, a: Real, b: Real) -> Real { select4f32(m, a, b) }
+fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { select4i32(m, a, b) }
 fn real(x: f32) -> Real { simd[x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x] }
 
@@ -18,10 +18,10 @@ extern "C" {
     fn float_as_int(f32) -> i32;
 }
 
-fn sum_real(x: Real) -> f32 {
-    let y = shuffle4f32(x, x, simd[2, 3, 0, 1]);
-    let z = x + y;
-    z(0) + z(1)
+fn find_tmin(t: Real) -> f32 {
+    let a = shuffle4f32(t, t, simd[2, 3, 0, 1]);
+    let b = min_real(a, t);
+    if b(0) < b(1) { b(0) } else { b(1) }
 }
 
 fn min_real(a: Real, b: Real) -> Real { select4f32(a < b, a, b) }
@@ -41,19 +41,19 @@ struct Node {
     children: [i32 * 4]
 }
 
-fn iterate_triangles(nodes: &[Node], node_id: i32, tris: &[Vec4], body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
+fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
     let mut loop_id = !node_id;
     while true {
-        let v0 = tris(loop_id + 0);
-        let v1 = tris(loop_id + 1);
-        let v2 = tris(loop_id + 2);
+        let v0 = *(&tris(loop_id + 0) as &simd[f32 * 4]);
+        let v1 = *(&tris(loop_id + 1) as &simd[f32 * 4]);
+        let v2 = *(&tris(loop_id + 2) as &simd[f32 * 4]);
 
         body(intr(loop_id),
-             vec3(real(v0.x), real(v0.y), real(v0.z)),
-             vec3(real(v1.x), real(v1.y), real(v1.z)),
-             vec3(real(v2.x), real(v2.y), real(v2.z)));
+             vec3(real(v0(0)), real(v0(1)), real(v0(2))),
+             vec3(real(v1(0)), real(v1(1)), real(v1(2))),
+             vec3(real(v2(0)), real(v2(1)), real(v2(2))));
 
-        if float_as_int(v2.w) == 0x80000000 {
+        if float_as_int(v2(3)) == 0x80000000 {
             break()
         }
 
@@ -74,7 +74,7 @@ fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, V
 
         body(min, max, |hit, t0| {
             if any(hit) {
-                t(k) = sum_real(t0);
+                t(k) = find_tmin(t0);
                 next(k) = node.children(i);
                 k++;
             }
@@ -83,14 +83,21 @@ fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, V
 
     if k == 0 { stack.pop(); }
     else if k == 1 { stack.push(|i| { next(i) }, 1); }
-    else {
+    else if k == 2 {
+        if t(0) < t(1) {
+            next(0) ^= next(1);
+            next(1) ^= next(0);
+            next(0) ^= next(1);
+        }
+        stack.push(|i| { next(i) }, 2);
+    } else {
         // Sort intersections
         for i in range(1, k) {
             let u = t(i);
             let n = next(i);
 
             let mut j = i;
-            while j >= 0 && t(j) < u {
+            while j > 0 && t(j - 1) < u {
                 t(j) = t(j - 1);
                 next(j) = next(j - 1);
                 j--;

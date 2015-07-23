@@ -33,7 +33,7 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, v0: Vec3, v1:
     let idet = real(1.0f) / det;
     let tvec = vec3_sub(org, v0);
     let u = vec3_dot(tvec, pvec) * idet;
-    let mut mask: Mask = u >= real(0.0f) & u <= real(1.0f);
+    let mut mask = u >= real(0.0f) & u <= real(1.0f);
     if any(mask) {
         let qvec = vec3_cross(tvec, e0);               
         let v = vec3_dot(qvec, dir) * idet;

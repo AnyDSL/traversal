@@ -40,8 +40,8 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
             while is_leaf(nodes, stack.top()) {
                 for id, v0, v1, v2 in iterate_triangles(nodes, stack.top(), tris) {
                     intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |mask, dist| {
-                        maskstore_real(mask, &t, dist);
-                        maskstore_intr(mask, &tri, id);
+                        t = select_real(mask, dist, t);
+                        tri = select_intr(mask, id, tri);
                     });
                 }
 

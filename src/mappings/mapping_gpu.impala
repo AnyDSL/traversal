@@ -7,6 +7,8 @@ type Mask = bool;
 type Intr = i32;
 type HitFn = fn (Intr, Real) -> ();
 
+fn select_real(m: Mask, a: Real, b: Real) -> Real { if m { a } else { b } }
+fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
 fn maskstore_real(m: Mask, mut dst: &Real, src: Real) -> () { if m { *dst = src; } }
 fn maskstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { if m { *dst = src; } }
 fn real(x: f32) -> Real { x }
