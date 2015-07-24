@@ -1,85 +1,131 @@
 // Mapping for GPU raytracing
-static postpone_count = 0;
-static block_size = 64;
+static block_w = 32;
+static block_h = 4;
 
-struct RayData {
-    org: Vec3,
-    dir: Vec3,
-    inv: Vec3,
-    tri: i32,
-    tmin: f32,
-    tmax: f32,
-    u: f32,
-    v: f32
+type Real = f32;
+type Mask = bool;
+type Intr = i32;
+type HitFn = fn (Intr, Real, Real, Real) -> ();
+
+fn select_real(m: Mask, a: Real, b: Real) -> Real { if m { a } else { b } }
+fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
+fn maskstore_real(m: Mask, mut dst: &Real, src: Real) -> () { if m { *dst = src; } }
+fn maskstore_intr(m: Mask, mut dst: &Intr, src: Intr) -> () { if m { *dst = src; } }
+fn real(x: f32) -> Real { x }
+fn intr(x: i32) -> Intr { x }
+
+fn any(m: Mask) -> bool { m }
+fn all(m: Mask) -> bool { m }
+fn abs_real(r: Real) -> Real { fabsf(r) }
+
+extern "C" {
+    fn min_real(Real, Real) -> Real;
+    fn max_real(Real, Real) -> Real;
+    fn minmin_real(Real, Real, Real) -> Real;
+    fn maxmax_real(Real, Real, Real) -> Real;
+    fn minmax_real(Real, Real, Real) -> Real;
+    fn maxmin_real(Real, Real, Real) -> Real;
+    fn ldg4f(&simd[f32 * 4]) -> simd[f32 * 4];
+    fn ldg4i(&simd[i32 * 4]) -> simd[i32 * 4];
+    fn float_as_int(f32) -> i32;
 }
 
-fn iterate_rays(rays: Rays, i: i32, j: i32, body: fn(&RayData) -> ()) -> () {
-    assert(|| {(j - i) / block_size == 1}, "iterate_rays : invalid number of rays");
+struct BBox {
+    lo_x: f32,
+    hi_x: f32,
+    lo_y: f32,
+    hi_y: f32,
+    lo_z: f32,
+    hi_z: f32
+}
 
+struct Node {
+    left_bb: BBox,
+    right_bb: BBox,
+    left: i32,
+    right: i32,
+    pad0: i32,
+    pad1: i32
+}
+
+fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (i32, Vec3, Vec3, Vec3) -> ()) -> () {
+    let mut loop_id = !node_id;
+    while true {
+        let v0 = *(&tris(loop_id + 0) as &simd[f32 * 4]);
+        let v1 = *(&tris(loop_id + 1) as &simd[f32 * 4]);
+        let v2 = *(&tris(loop_id + 2) as &simd[f32 * 4]);
+
+        body(loop_id,
+             vec3(v0(0), v0(1), v0(2)),
+             vec3(v1(0), v1(1), v1(2)),
+             vec3(v2(0), v2(1), v2(2)));
+
+        if float_as_int(v2(3)) == 0x80000000 {
+            break()
+        }
+
+        loop_id += 3;
+    }
+}
+
+fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (bool, f32) -> ()) -> ()) -> () {
+    let mut node_ptr = &nodes(node_id) as &[f32];
+    let bb0 = ldg4f(&node_ptr(0) as &simd[f32 * 4]);
+    let bb1 = ldg4f(&node_ptr(4) as &simd[f32 * 4]);
+    let bb2 = ldg4f(&node_ptr(8) as &simd[f32 * 4]);
+    let children = ldg4i(&node_ptr(12) as &simd[i32 * 4]);
+
+    let mut t : [f32 * 2];
+    let mut next : [i32 * 2];
+    let mut intr : [bool * 2] = [false, false];
+
+    body(vec3(bb0(0), bb0(2), bb1(0)), vec3(bb0(1), bb0(3), bb1(1)), |hit, t0| {
+        t(0) = t0;
+        next(0) = children(0);
+        intr(0) = hit;
+    });
+
+    body(vec3(bb1(2), bb2(0), bb2(2)), vec3(bb1(3), bb2(1), bb2(3)), |hit, t0| {
+        t(1) = t0;
+        next(1) = children(1);
+        intr(1) = hit;
+    });
+
+    if !intr(0) && !intr(1) {
+        stack.pop();
+    } else {
+        if intr(0) && intr(1) {
+            if t(0) < t(1) {
+                next(0) ^= next(1);
+                next(1) ^= next(0);
+                next(0) ^= next(1);
+            }
+            stack.push(|i| { next(i) }, 2)
+        } else {
+            stack.push(|i| { if intr(0) { next(0) } else { next(1) } }, 1)
+        }
+    }
+}
+
+fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, f32, f32, HitFn) -> ()) -> () {
     let dev = acc_dev();
-    let grid = (j - i, 1, 1);
-    let block = (block_size, 1, 1);
+    let grid = (ray_count / block_h, block_h, 1);
+    let block = (block_w, block_h, 1);
 
-    let org_x = rays.org_x;
-    let org_y = rays.org_y;
-    let org_z = rays.org_z;
-    let dir_x = rays.dir_x;
-    let dir_y = rays.dir_y;
-    let dir_z = rays.dir_z;
+    acc(dev, grid, block, |exit| {
+        let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
+        if id > ray_count {
+            exit()
+        }
 
-    let mut tri = rays.tri;
-    let tmin = rays.tmin;
-    let mut tmax = rays.tmax;
-    let mut u = rays.u;
-    let mut v = rays.v;
+        let mut ray_ptr = &rays(id) as &[f32];
+        let ray0 = ldg4f(&ray_ptr(0) as &simd[f32 * 4]);
+        let ray1 = ldg4f(&ray_ptr(4) as &simd[f32 * 4]);
 
-    acc(dev, grid, block, || @{
-        let id = acc_gidx();
-
-        let mut ray = RayData {
-            org: Vec3 { x: org_x(id), y: org_y(id), z: org_z(id) },
-            dir: Vec3 { x: dir_x(id), y: dir_y(id), z: dir_z(id) },
-            inv: Vec3 { x: 1.0f / dir_x(id),
-                        y: 1.0f / dir_y(id),
-                        z: 1.0f / dir_z(id) },
-            tri: tri(id),
-            tmin: tmin(id),
-            tmax: tmax(id),
-            u: u(id),
-            v: v(id)
-        };
-
-        @body(&ray);
-
-        tri(id) = ray.tri;
-        tmax(id) = ray.tmax;
-        u(id) = ray.u;
-        v(id) = ray.v;
+        @body(vec3(ray0(0), ray0(1), ray0(2)),
+              vec3(ray1(0), ray1(1), ray1(2)),
+              ray0(3), ray1(3), |tri, t, u, v| {
+            *(&hits(id) as &simd[i32 * 4]) = simd[tri, float_as_int(t), float_as_int(u), float_as_int(v)];
+        });
     })
 }
-
-fn intersect_leaf(mut ray: &RayData, accel: Accel, node: i32) -> () @{
-    for tri, v0, v1, v2 in iterate_triangles(accel, node) @{
-        intersect_ray_tri(ray.org, ray.dir, v0, v1, v2, |t, u, v, mask| @{
-            if any(mask & t < ray.tmax & t > ray.tmin) @{
-                ray.tri = tri;
-                ray.tmax = t;
-                ray.u = u;
-                ray.v = v;
-            }
-            continue()
-        })
-    }
-}
-
-fn intersect_node(ray: &RayData, accel: Accel, node: i32, stack: &Stack) -> () @{
-    for min, max, push in iterate_children(accel, node, stack) @{
-        intersect_ray_box(ray.org, ray.inv, min, max, |t_entry, t_exit, mask| @{
-            if any(mask & ray.tmin < t_exit & ray.tmax > t_entry) @{
-                push(t_entry)
-            }
-            continue()
-        })
-    }
-}
-

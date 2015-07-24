@@ -1,53 +1,33 @@
-if(ACCEL STREQUAL "bvh")
-    set(ACCEL_SRCS accel/bvh.impala)
-else()
-    message(FATAL_ERROR "Invalid acceleration structure type specified")
-endif()
-
-set(COMMON_SRCS
-    common/debug.impala
-    common/float.impala
-    common/intersection.impala
-    common/range.impala
-    common/stack.impala
-    common/vector.impala
-    common/traversal.impala)
-
-if(VECTORIZE STREQUAL "" OR VECTORIZE STREQUAL "1")
-    set(VECTORIZE_SRCS vectorize/scalar.impala)
-elseif(VECTORIZE STREQUAL "4")
-    set(VECTORIZE_SRCS vectorize/vectorize4.impala)
-elseif(VECTORIZE STREQUAL "8")
-    set(VECTORIZE_SRCS vectorize/vectorize8.impala)
-elseif(VECTORIZE STREQUAL "16")
-    set(VECTORIZE_SRCS vectorize/vectorize16.impala)
-else()
-    message(FATAL_ERROR "Invalid vector size specified for hand-coded mapping")
-endif()
-
-if(NOT VECTORIZE_SRCS STREQUAL "vectorize/scalar.impala" AND NOT BACKEND STREQUAL "cpu")
-    message(FATAL_ERROR "Hand coded vector code can only be used with the cpu backend")
-endif() 
-
-if(BACKEND STREQUAL "cpu")
-    set(MAPPING_SRCS mappings/mapping_packet.impala)
-elseif(BACKEND STREQUAL "avx")
-    set(MAPPING_SRCS mappings/mapping_packet_auto.impala)
-elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
-    set(MAPPING_SRCS mappings/mapping_gpu.impala)
-else()
-    message(FATAL_ERROR "Backend not supported")
-endif()
-
 set(FRONTEND_SRCS
-    frontend/load_bvh.cpp
+    frontend/bvh_file.h
     frontend/load_rays.cpp
     frontend/main.cpp
     frontend/loaders.h
     frontend/options.h
     frontend/traversal.h)
 
-set(IMPALA_SRCS ${ACCEL_SRCS} ${MAPPING_SRCS} ${VECTORIZE_SRCS} ${COMMON_SRCS})
+set(COMMON_SRCS
+    common/debug.impala
+    common/float.impala
+    common/intersection.impala
+    common/stack.impala
+    common/range.impala
+    common/vector.impala
+    common/traversal.impala)
+
+if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
+    set(MAPPING_SRCS mappings/mapping_cpu.impala)
+    set(FRONTEND_SRCS ${FRONTEND_SRCS} frontend/load_mbvh.cpp)
+    set(FRONTEND_DEFS "get_time=thorin_get_micro_time")
+elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
+    set(MAPPING_SRCS mappings/mapping_gpu.impala)
+    set(FRONTEND_SRCS ${FRONTEND_SRCS} frontend/load_bvh.cpp)
+    set(FRONTEND_DEFS "get_time=thorin_get_kernel_time")
+else()
+    message(FATAL_ERROR "Backend not supported")
+endif()
+
+set(IMPALA_SRCS ${MAPPING_SRCS} ${COMMON_SRCS})
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
                    COMMAND impala -emit-c-interface ${IMPALA_SRCS}
@@ -65,6 +45,7 @@ set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
 
 add_library(traversal ${IMPALA_OBJS})
 target_link_libraries(traversal ${IMPALA_LIBS})
+target_compile_definitions(traversal PUBLIC ${FRONTEND_DEFS})
 
 add_executable(frontend ${FRONTEND_SRCS})
 target_link_libraries(frontend traversal)

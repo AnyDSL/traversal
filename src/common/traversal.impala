@@ -1,58 +1,59 @@
-// Core part of the traversal algorithm
-struct Rays {
-    org_x: &[f32],
-    org_y: &[f32],
-    org_z: &[f32],
-
-    dir_x: &[f32],
-    dir_y: &[f32],
-    dir_z: &[f32],
-
-    tri: &[i32],
-    tmin: &[f32],
-    tmax: &[f32],
-    u: &[f32],
-    v: &[f32]
+struct Ray {
+    org: Vec4,
+    dir: Vec4
 }
 
-extern fn traverse_accel(accel_ptr: &Accel, rays_ptr: &Rays, ray_count: i32) -> () @{
-    let accel = *accel_ptr;
-    let rays = *rays_ptr;
+struct Vec4 {
+    x: f32,
+    y: f32,
+    z: f32,
+    w: f32
+}
 
-    for ray in iterate_rays(rays, 0, ray_count) @{
-        let mut stack = empty_stack();
-        let mut postponed = empty_stack();
+struct Hit {
+    tri_id: i32,
+    tmax: f32,
+    u: f32,
+    v: f32
+}
 
-        push_node(&stack, root_node(accel));
-        while !is_empty(&stack) {
-            let id = pop_node(&stack);
+extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hit], ray_count: i32) -> () {
+    for org, dir, tmin, tmax, record_hit in iterate_rays(rays, hits, ray_count) {
+        // Allocate a stack for the traversal
+        let stack = allocate_stack();
 
-            if @is_leaf(accel, id) {
-                if postpone_count > 0 @{
-                    push_node(&postponed, id)
-                } else @{
-                    intersect_leaf(ray, accel, id)
-                }
-            } else @{
-                intersect_node(ray, accel, id, &stack);
+        // Initialize traversal variables
+        let idir = vec3(real(1.0f) / dir.x, real(1.0f) / dir.y, real(1.0f) / dir.z);
+        let mut t = tmax;
+        let mut u = real(0.0f);
+        let mut v = real(0.0f);
+        let mut tri = intr(-1);            
+
+        // Traversal loop
+        while !stack.is_empty() @{
+            // Intersect children and update stack
+            for min, max, hit in iterate_children(nodes, stack.top(), stack) {
+                intersect_ray_box(org, idir, tmin, t, min, max, |t0, t1| {
+                    hit(t0 <= t1, t0)
+                });
             }
 
-            if postpone_count > 0 @{
-                if stack_size(&postponed) >= postpone_count @{
-                    while !is_empty(&postponed) @{
-                        let id = pop_node(&postponed);
-                        intersect_leaf(ray, accel, id)
-                    }
+            // Intersect leaves
+            while is_leaf(nodes, stack.top()) {
+                for id, v0, v1, v2 in iterate_triangles(nodes, stack.top(), tris) {
+                    intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |mask, t0, u0, v0| {
+                        t = select_real(mask, t0, t);
+                        u = select_real(mask, u0, u);
+                        v = select_real(mask, v0, v);
+                        tri = select_intr(mask, id, tri);
+                    });
                 }
+
+                // Pop node from the stack
+                stack.pop();
             }
         }
 
-        if postpone_count > 0 @{
-            while !is_empty(&postponed) @{
-                let id = pop_node(&postponed);
-                intersect_leaf(ray, accel, id)
-            }
-        }
+        record_hit(tri, t, u, v);
     }
 }
-

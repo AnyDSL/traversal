@@ -6,6 +6,7 @@
 #include "traversal.h"
 #include "loaders.h"
 #include "thorin_runtime.h"
+#include "thorin_utils.h"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -40,13 +41,14 @@ int main(int argc, char** argv) {
 
     thorin_init();
 
-    Accel* accel;
-    if (!load_bvh(accel_file, accel)) {
+    Node* nodes;
+    Vec4* tris;
+    if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
     }
 
-    Rays* rays;
+    Ray* rays;
     int ray_count;
     if (!load_rays(rays_file, rays, ray_count, tmin, tmax)) {
         std::cerr << "Cannot load ray distribution file." << std::endl;
@@ -55,57 +57,52 @@ int main(int argc, char** argv) {
 
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    std::function<void (Rays*)> reset_rays;
-    {
-        int* tri = thorin_new<int>(ray_count);
-        float* tmax = thorin_new<float>(ray_count);
-        float* tmin = thorin_new<float>(ray_count);
-        float* u = thorin_new<float>(ray_count);
-        float* v = thorin_new<float>(ray_count);
-        memcpy(tri, rays->tri, sizeof(int) * ray_count);
-        memcpy(tmax, rays->tmax, sizeof(float) * ray_count);
-        memcpy(tmin, rays->tmin, sizeof(float) * ray_count);
-        memcpy(u, rays->u, sizeof(float) * ray_count);
-        memcpy(v, rays->v, sizeof(float) * ray_count);
-        reset_rays = [=] (Rays* rays) {
-            memcpy(rays->tri, tri, sizeof(int) * ray_count);
-            memcpy(rays->tmax, tmax, sizeof(float) * ray_count);
-            memcpy(rays->tmin, tmin, sizeof(float) * ray_count);
-            memcpy(rays->u, u, sizeof(float) * ray_count);
-            memcpy(rays->v, v, sizeof(float) * ray_count);
-        };
-    }
+    Hit* hits = thorin_new<Hit>(ray_count);
+    auto reset_hits = [&] () {
+        for (int i = 0; i < ray_count; i++) {
+            hits[i].tri_id = -1;
+            hits[i].tmax = rays[i].dir.w;        
+        }
+    };
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
-        reset_rays(rays);
-        traverse_accel(accel, rays, ray_count);
+        reset_hits();
+        traverse_accel(nodes, rays, tris, hits, ray_count);
     }
 
     // Compute traversal time
-    std::chrono::high_resolution_clock::duration time(0);
+    std::vector<long long> iter_times(times);
     for (int i = 0; i < times; i++) {
-        reset_rays(rays);
-        auto t0 = std::chrono::high_resolution_clock::now();
-        traverse_accel(accel, rays, ray_count);
-        auto t1 = std::chrono::high_resolution_clock::now();
-        time += t1 - t0;
+        reset_hits();
+        long long t0 = get_time();
+        traverse_accel(nodes, rays, tris, hits, ray_count);
+        long long t1 = get_time();
+        iter_times[i] = t1 - t0;
     }
 
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(time).count();
-    std::cout << duration << "ms for " << times << " iteration(s)." << std::endl;
-    std::cout << ray_count * times * 1000.0 / duration << " rays/sec." << std::endl;
+    std::sort(iter_times.begin(), iter_times.end());
+
+    long long median = iter_times[times / 2];
+    long long sum = std::accumulate(iter_times.begin(), iter_times.end(), 0);
+    std::cout << sum / 1000.0 << "ms for " << times << " iteration(s)." << std::endl;
+    std::cout << ray_count * times * 1000000.0 / sum << " rays/sec." << std::endl;
+    std::cout << "Average: " << sum /1000.0 / times << " ms" << std::endl;
+    std::cout << "Median: " << median / 1000.0 << " ms" << std::endl;
+    std::cout << "Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
+
     
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
-        if (rays->tri[i] >= 0) {
+        if (hits[i].tri_id >= 0) {
             intr++;
         }
     }
     std::cout << intr << " intersection(s)." << std::endl;
 
     std::ofstream out(output, std::ofstream::binary);
-    out.write((char*)rays->tmax, sizeof(float) * ray_count);
+    for (int i = 0; i < ray_count; i++)
+        out.write((char*)&hits[i].tmax, sizeof(float));
 
     return EXIT_SUCCESS;
 }

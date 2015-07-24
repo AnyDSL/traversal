@@ -13,4 +13,3 @@ fn assert(cond: fn () -> bool, msg: &[u8]) -> () {
         }
     }
 }
-
