@@ -22,9 +22,6 @@ if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(BACKEND "cpu")
 endif()
 
-set(ACCEL "bvh" CACHE STRING "Acceleration structure type (bvh, ...)")
-set(VECTORIZE "" CACHE STRING "Hand coded vectorization length (1, 4, 8, 16)")
-
 find_package(Threads REQUIRED)
 
 add_subdirectory(src)
