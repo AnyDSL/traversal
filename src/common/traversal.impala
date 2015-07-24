@@ -28,9 +28,9 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
         let mut tri = intr(-1);            
 
         // Traversal loop
-        while !stack.is_empty() {
+        while !stack.is_empty() @{
             // Intersect children and update stack
-            for min, max, hit in @iterate_children(nodes, stack.top(), stack) {
+            for min, max, hit in iterate_children(nodes, stack.top(), stack) {
                 intersect_ray_box(org, idir, tmin, t, min, max, |t0, t1| {
                     hit(t0 <= t1, t0)
                 });
