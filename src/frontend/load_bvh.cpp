@@ -25,14 +25,14 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     std::vector<io::bvh::Node> nodes(h.node_count);
     in.read((char*)nodes.data(), sizeof(io::bvh::Node) * h.node_count);
     
-    std::vector<int> prim_ids(h.prim_count);
-    in.read((char*)prim_ids.data(), sizeof(int) * h.prim_count);
+    std::vector<int32_t> prim_ids(h.prim_count);
+    in.read((char*)prim_ids.data(), sizeof(int32_t) * h.prim_count);
 
     std::vector<float> vertices(h.vert_count * 3);
     in.read((char*)vertices.data(), sizeof(float) * 3 * h.vert_count);
 
-    std::vector<int> tri_ids(h.prim_count * 3);
-    in.read((char*)tri_ids.data(), sizeof(int) * 3 * h.prim_count);
+    std::vector<int32_t> tri_ids(h.prim_count * 3);
+    in.read((char*)tri_ids.data(), sizeof(int32_t) * 3 * h.prim_count);
 
     std::vector<Node> node_stack;
     std::vector<Vec4> tri_stack;

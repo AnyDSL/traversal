@@ -1,9 +1,9 @@
 #ifndef BVH_FILE_H
 #define BVH_FILE_H
 
-namespace io {
-    typedef unsigned int uint;
+#include <cstdint>
 
+namespace io {
     enum BlockType {
         BVH = 1,
         MBVH = 2
@@ -13,15 +13,15 @@ namespace io {
         struct Node {
             float min[3];
             float max[3];
-            int child_first;
-            unsigned short prim_count;
-            unsigned short axis;
+            int32_t child_first;
+            int16_t prim_count;
+            int16_t axis;
         };
 
         struct Header {
-            int node_count;
-            int prim_count;
-	        int vert_count;
+            uint32_t node_count;
+            uint32_t prim_count;
+            uint32_t vert_count;
         };
     }
 
@@ -32,34 +32,34 @@ namespace io {
         };
 
         struct Header {
-            uint node_count;
-            uint vert_count;
+            uint32_t node_count;
+            uint32_t vert_count;
             BBox scene_bb;
         };
 
         struct Node {
             BBox bb[4];
-            int children[4];
-            int prim_count[4];
+            int32_t children[4];
+            int32_t prim_count[4];
         };
     }
 
     inline bool check_header(std::istream& is) {
-        uint magic;
-        is.read((char*)&magic, sizeof(uint));
+        uint32_t magic;
+        is.read((char*)&magic, sizeof(uint32_t));
         return magic == 0x312F1A57;
     }
 
     inline bool locate_block(std::istream& is, BlockType type) {
-        BlockType block_type;
-        long offset = 0;
+        uint32_t block_type;
+        uint64_t offset = 0;
         do {
             is.seekg(offset, std::istream::cur);
 
-            is.read((char*)&offset, sizeof(long));
-            if (is.gcount() != sizeof(long)) return false;
-            is.read((char*)&block_type, sizeof(BlockType));
-            if (is.gcount() != sizeof(BlockType)) return false;
+            is.read((char*)&offset, sizeof(uint64_t));
+            if (is.gcount() != sizeof(std::uint64_t)) return false;
+            is.read((char*)&block_type, sizeof(uint32_t));
+            if (is.gcount() != sizeof(uint32_t)) return false;
 
             offset -= sizeof(BlockType);
         } while (!is.eof() && block_type != type);

@@ -12,25 +12,44 @@ import Data.List
 import System.Random
 import Linear
 
-data Bounds = Bounds (V3 Float) (V3 Float)
+data Bounds = Bounds (V3 Float) (V3 Float) deriving (Show)
 
-infinity = encodeFloat (floatRadix 0 - 1) (snd $ floatRange 0)
-emptyBounds = Bounds (V3 infinity infinity infinity) (V3 (-infinity) (-infinity) (-infinity))
+checkHeader :: BS.ByteString -> Bool
+checkHeader bytes = runGet getWord32le bytes == 0x312F1A57
 
-computeBounds :: String -> IO Bounds
-computeBounds bvh = do
-    bytes <- BS.readFile bvh
-    let (Header nodes prims verts norms texs mats) = runGet get bytes
-    let vertBytes = BS.drop (fromIntegral $ 4 * 6 + nodeBytes * nodes + 4 * prims) bytes
-    let getBounds = foldM (\(Bounds a b) i -> do v <- getV3 ; return $ Bounds (min a v) (max b v)) emptyBounds [1.. verts] :: Get Bounds
-    return $ runGet getBounds vertBytes
+locateChunk :: Word32 -> BS.ByteString -> Maybe BS.ByteString
+locateChunk id bytes = case chunk of
+    Just (offset, chunkId) -> if chunkId == id
+        then Just $ BS.drop 12 bytes
+        else locateChunk id (BS.drop (fromIntegral $ offset + 8) bytes)
+    _ -> Nothing
+    where
+        chunk = runGet getChunk bytes
+        getChunk = do
+            e <- isEmpty
+            if e
+            then return Nothing
+            else do
+                o <- getWord64le
+                c <- getWord32le
+                return $ Just (o, c)
+
+readBounds :: String -> IO Bounds
+readBounds bvh = do
+    file <- BS.readFile bvh
+    if not (checkHeader file)
+    then error "Invalid BVH file"
+    else
+        case locateChunk 2 (BS.drop 4 file) of
+            Just bytes -> return $ runGet (do skip 8 ; min <- getV3 ; max <- getV3 ; return $ Bounds min max) bytes
+            Nothing -> error "Cannot locate MBVH chunk"
     where
         nodeBytes = 32
 
 main = do
     (flags, output) <- programOptions
     let s = programSettings flags
-    bounds <- computeBounds (bvhFile s)
+    bounds <- readBounds (bvhFile s)
     let gen = mkStdGen (seed s)
     let generateRays g i = do
          put r
@@ -38,29 +57,6 @@ main = do
          where (r, g') = generateRandom g bounds
     let bytes = runPut $ foldM_ generateRays gen [1.. width s * height s]
     BS.writeFile output bytes
-
-getInt32 :: Get Int32
-getInt32 = liftM fromIntegral getWord32le
-putInt32 :: Int32 -> Put
-putInt32 = putWord32le . fromIntegral
-
-data Header = Header Int32 Int32 Int32 Int32 Int32 Int32
-
-instance Binary Header where
-    put (Header nodes prims verts norms texs mats) = putInt32 nodes >>
-                                                     putInt32 prims >>
-                                                     putInt32 verts >>
-                                                     putInt32 norms >>
-                                                     putInt32 texs >>
-                                                     putInt32 mats
-    get = do
-          nodes <- getInt32
-          prims <- getInt32
-          verts <- getInt32
-          norms <- getInt32
-          texs <- getInt32
-          mats <- getInt32
-          return $ (Header nodes prims verts norms texs mats)
 
 data Ray = Ray { org :: V3 Float, dir :: V3 Float } deriving Show
 
