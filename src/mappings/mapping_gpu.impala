@@ -15,18 +15,12 @@ fn intr(x: i32) -> Intr { x }
 fn any(m: Mask) -> bool { m }
 fn all(m: Mask) -> bool { m }
 fn abs_real(r: Real) -> Real { fabsf(r) }
-
-extern "C" {
-    fn min_real(Real, Real) -> Real;
-    fn max_real(Real, Real) -> Real;
-    fn minmin_real(Real, Real, Real) -> Real;
-    fn maxmax_real(Real, Real, Real) -> Real;
-    fn minmax_real(Real, Real, Real) -> Real;
-    fn maxmin_real(Real, Real, Real) -> Real;
-    fn ldg4f(&simd[f32 * 4]) -> simd[f32 * 4];
-    fn ldg4i(&simd[i32 * 4]) -> simd[i32 * 4];
-    fn float_as_int(f32) -> i32;
-}
+fn min_real(a: Real, b: Real) -> Real { fminf(a, b) }
+fn max_real(a: Real, b: Real) -> Real { fmaxf(a, b) }
+fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast_i32_f32(minmin(bitcast_f32_i32(a), bitcast_f32_i32(b), bitcast_f32_i32(c))) }
+fn maxmax_real(a: Real, b: Real, c: Real) -> Real { bitcast_i32_f32(maxmax(bitcast_f32_i32(a), bitcast_f32_i32(b), bitcast_f32_i32(c))) }
+fn minmax_real(a: Real, b: Real, c: Real) -> Real { bitcast_i32_f32(minmax(bitcast_f32_i32(a), bitcast_f32_i32(b), bitcast_f32_i32(c))) }
+fn maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast_i32_f32(maxmin(bitcast_f32_i32(a), bitcast_f32_i32(b), bitcast_f32_i32(c))) }
 
 struct BBox {
     lo_x: f32,
@@ -58,7 +52,7 @@ fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (
              vec3(v1(0), v1(1), v1(2)),
              vec3(v2(0), v2(1), v2(2)));
 
-        if float_as_int(v2(3)) == 0x80000000 {
+        if bitcast_f32_i32(v2(3)) == 0x80000000 {
             break()
         }
 
@@ -66,20 +60,22 @@ fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (
     }
 }
 
-fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (bool, f32) -> ()) -> ()) -> () {
+fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (f32, f32) -> ()) -> ()) -> () {
     let mut node_ptr = &nodes(node_id) as &[f32];
-    let bb0 = ldg4f(&node_ptr(0) as &simd[f32 * 4]);
-    let bb1 = ldg4f(&node_ptr(4) as &simd[f32 * 4]);
-    let bb2 = ldg4f(&node_ptr(8) as &simd[f32 * 4]);
-    let mut children = ldg4i(&node_ptr(12) as &simd[i32 * 4]);
+    let bb0 = ldg4f32(&node_ptr(0) as &simd[f32 * 4]);
+    let bb1 = ldg4f32(&node_ptr(4) as &simd[f32 * 4]);
+    let bb2 = ldg4f32(&node_ptr(8) as &simd[f32 * 4]);
+    let mut children = ldg4i32(&node_ptr(12) as &simd[i32 * 4]);
 
-    body(vec3(bb0(0), bb0(2), bb1(0)), vec3(bb0(1), bb0(3), bb1(1)), |hit0, t0| {
-        body(vec3(bb1(2), bb2(0), bb2(2)), vec3(bb1(3), bb2(1), bb2(3)), |hit1, t1| {
+    body(vec3(bb0(0), bb0(2), bb1(0)), vec3(bb0(1), bb0(3), bb1(1)), |t00, t01| {
+        body(vec3(bb1(2), bb2(0), bb2(2)), vec3(bb1(3), bb2(1), bb2(3)), |t10, t11| {
+            let hit0 = t00 <= t01;
+            let hit1 = t10 <= t11;
             if !hit0 && !hit1 {
                 stack.pop();
             } else {
                 if hit0 && hit1 {
-                    if t0 < t1 {
+                    if t00 < t10 {
                         children(0) ^= children(1);
                         children(1) ^= children(0);
                         children(0) ^= children(1);
@@ -90,7 +86,7 @@ fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec
                 }
             }
         });
-    });  
+    });
 }
 
 fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, f32, f32, HitFn) -> ()) -> () {
@@ -105,13 +101,13 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Ve
         }
 
         let mut ray_ptr = &rays(id) as &[f32];
-        let ray0 = ldg4f(&ray_ptr(0) as &simd[f32 * 4]);
-        let ray1 = ldg4f(&ray_ptr(4) as &simd[f32 * 4]);
+        let ray0 = ldg4f32(&ray_ptr(0) as &simd[f32 * 4]);
+        let ray1 = ldg4f32(&ray_ptr(4) as &simd[f32 * 4]);
 
         @body(vec3(ray0(0), ray0(1), ray0(2)),
               vec3(ray1(0), ray1(1), ray1(2)),
               ray0(3), ray1(3), |tri, t, u, v| {
-            *(&hits(id) as &simd[i32 * 4]) = simd[tri, float_as_int(t), float_as_int(u), float_as_int(v)];
+            *(&hits(id) as &simd[f32 * 4]) = simd[bitcast_i32_f32(tri), t, u, v];
         });
     })
 }

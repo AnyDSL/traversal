@@ -1,31 +1,30 @@
 // Mapping for packet tracing on the CPU
-static vector_size = 4;
+static vector_size = 8;
 
-type Real = simd[f32 * 4];
-type Mask = simd[bool * 4];
-type Intr = simd[i32 * 4];
+type Real = simd[f32 * 8];
+type Mask = simd[bool * 8];
+type Intr = simd[i32 * 8];
 type HitFn = fn (Intr, Real, Real, Real) -> ();
 
-fn select_real(m: Mask, a: Real, b: Real) -> Real { select4f32(m, a, b) }
-fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { select4i32(m, a, b) }
-fn real(x: f32) -> Real { simd[x, x, x, x] }
-fn intr(x: i32) -> Intr { simd[x, x, x, x] }
-
-extern "C" {
-    fn any(Mask) -> bool;
-    fn all(Mask) -> bool;
-    fn abs_real(Real) -> Real;
-    fn float_as_int(f32) -> i32;
-}
+fn select_real(m: Mask, a: Real, b: Real) -> Real { select8_f32(m, a, b) }
+fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { select8_i32(m, a, b) }
+fn real(x: f32) -> Real { simd[x, x, x, x, x, x, x, x] }
+fn intr(x: i32) -> Intr { simd[x, x, x, x, x, x, x, x] }
 
 fn find_tmin(t: Real) -> f32 {
-    let a = shuffle4f32(t, t, simd[2, 3, 0, 1]);
+    let a = shuffle8_f32(t, t, simd[4, 5, 6, 7, 0, 1, 2, 3]);
     let b = min_real(a, t);
-    if b(0) < b(1) { b(0) } else { b(1) }
+    let c = shuffle8_f32(b, b, simd[3, 2, 1, 0, 7, 6, 5, 4]);
+    let d = min_real(b, c);
+    if d(0) < d(1) { d(0) } else { d(1) }
 }
 
-fn min_real(a: Real, b: Real) -> Real { select4f32(a < b, a, b) }
-fn max_real(a: Real, b: Real) -> Real { select4f32(a > b, a, b) }
+fn any(m: Mask) -> bool { true }
+fn all(m: Mask) -> bool { false }
+fn abs_real(x: Real) -> Real { bitcast8_i32_f32(bitcast8_f32_i32(x) & intr(0x7FFFFFFF)) }
+
+fn min_real(a: Real, b: Real) -> Real { select8_f32(a < b, a, b) }
+fn max_real(a: Real, b: Real) -> Real { select8_f32(a > b, a, b) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
 fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
@@ -53,7 +52,7 @@ fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (
              vec3(real(v1(0)), real(v1(1)), real(v1(2))),
              vec3(real(v2(0)), real(v2(1)), real(v2(2))));
 
-        if float_as_int(v2(3)) == 0x80000000 {
+        if (movmskps128(v2) & 8) != 0 {
             break()
         }
 
@@ -61,7 +60,7 @@ fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (
     }
 }
 
-fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (Mask, Real) -> ()) -> ()) -> () {
+fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (Real, Real) -> ()) -> ()) -> () {
     let mut t: [f32 * 4];
     let mut next: [i32 * 4];
     let mut k = 0;
@@ -72,8 +71,8 @@ fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, V
         let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
         let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
 
-        body(min, max, |hit, t0| {
-            if any(hit) {
+        body(min, max, |t0, t1| {
+            if movmskps256(cmpps256(t1, t0, 5i8)) != 0 {
                 t(k) = find_tmin(t0);
                 next(k) = node.children(i);
                 k++;
@@ -115,14 +114,14 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, 
     assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
     for i in range_step(0, ray_count, vector_size) {
-        let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x],
-                       simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y],
-                       simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z]);
-        let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x],
-                       simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y],
-                       simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z]);
-        let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w];
-        let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w];
+        let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x, rays(i + 4).org.x, rays(i + 5).org.x, rays(i + 6).org.x, rays(i + 7).org.x],
+                       simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y, rays(i + 4).org.y, rays(i + 5).org.y, rays(i + 6).org.y, rays(i + 7).org.y],
+                       simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z, rays(i + 4).org.z, rays(i + 5).org.z, rays(i + 6).org.z, rays(i + 7).org.z]);
+        let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x, rays(i + 4).dir.x, rays(i + 5).dir.x, rays(i + 6).dir.x, rays(i + 7).dir.x],
+                       simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y, rays(i + 4).dir.y, rays(i + 5).dir.y, rays(i + 6).dir.y, rays(i + 7).dir.y],
+                       simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z, rays(i + 4).dir.z, rays(i + 5).dir.z, rays(i + 6).dir.z, rays(i + 7).dir.z]);
+        let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w, rays(i + 4).org.w, rays(i + 5).org.w, rays(i + 6).org.w, rays(i + 7).org.w];
+        let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w, rays(i + 4).dir.w, rays(i + 5).dir.w, rays(i + 6).dir.w, rays(i + 7).dir.w];
 
         @body(org, dir, tmin, tmax, |tri, t, u, v| {
             for j in range(0, vector_size) {
