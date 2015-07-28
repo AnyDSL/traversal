@@ -109,19 +109,23 @@ def run_parallel(p):
         for q in p[i:i + n]:
             q.join()
 
-def generate_scenes():
+def generate_scenes(force):
     p = []
     for s in config['scenes']:
+        if os.path.exists(config['bvh_dir'] + "/" + s) and not force:
+            continue
         obj_file = config['obj_dir'] + "/" + s[:-3] + "obj"
         p.append(spawn_silent("* Scene: " + s, [config['bvh_io'], obj_file, config['bvh_dir'] + "/" + s]))
     run_parallel(p)
 
-def generate_distribs():
+def generate_distribs(force):
     devnull = open(os.devnull, "w")
 
     p = []
     # Generate primary ray distributions
     for name, viewport in config['rays'].items():
+        if os.path.exists(config['rays_dir'] + "/" + name) and not force:
+            continue
         if viewport['generate'] == 'primary':
             eye = viewport['eye']
             ctr = viewport['center']
@@ -147,6 +151,8 @@ def generate_distribs():
     q = []
     # Generate shadow ray distributions
     for name, viewport in config['rays'].items():
+        if os.path.exists(config['rays_dir'] + "/" + name) and not force:
+            continue
         if viewport['generate'] == 'shadow':
             fbuf = config['rays_dir'] + "/" + name + ".fbuf"
             primary = config['rays'][viewport['primary']]
@@ -246,7 +252,7 @@ def main():
         sys.exit()
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "gen-scenes", "gen-distribs"])
+        opts, args = getopt.getopt(sys.argv[1:], "h", ["help", "gen-scenes", "gen-distribs", "force"])
     except getopt.GetoptError as err:
         print(err)
         usage()
@@ -254,6 +260,7 @@ def main():
 
     gen_scenes = False
     gen_distribs = False
+    force_regen = False
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
@@ -262,14 +269,16 @@ def main():
             gen_scenes = True
         elif o == "--gen-distribs":
             gen_distribs = True
+        elif o == "--force":
+            force_regen = True
 
     if gen_scenes:
         print("Generating scenes...")
-        generate_scenes()
+        generate_scenes(force_regen)
 
     if gen_distribs:
         print("Generating distributions...")
-        generate_distribs()
+        generate_distribs(force_regen)
 
     print("Benchmarking...")
     benchmark()
