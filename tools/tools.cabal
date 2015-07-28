@@ -10,24 +10,28 @@ cabal-version:       >=1.10
 executable FBufToPng
   main-is:           FBufToPng.hs
   hs-source-dirs:    FBufToPng
+  ghc-options:       -fllvm -optlo-O3
   build-depends:     base >=4.5, vector, bytestring, binary, data-binary-ieee754, JuicyPixels
   default-language:  Haskell2010
 
 executable GenPrimary
   main-is:           GenPrimary.hs
   hs-source-dirs:    GenPrimary
+  ghc-options:       -fllvm -optlo-O3
   build-depends:     base >=4.5, linear, bytestring, binary, data-binary-ieee754
   default-language:  Haskell2010
 
 executable GenShadow
   main-is:           GenShadow.hs
   hs-source-dirs:    GenShadow
+  ghc-options:       -fllvm -optlo-O3
   build-depends:     base >=4.5, linear, vector, bytestring, binary, data-binary-ieee754
   default-language:  Haskell2010
 
 executable GenRandom
   main-is:           GenRandom.hs
   hs-source-dirs:    GenRandom
+  ghc-options:       -fllvm -optlo-O3
   build-depends:     base >=4.5, linear, random >= 1.1, bytestring, binary, data-binary-ieee754
   default-language:  Haskell2010
 
