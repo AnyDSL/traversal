@@ -14,10 +14,10 @@ default_config = """# Configuration file for the traversal benchmark
 # Tools
 ref_intr = ''                                        # Reference intersection program
 bvh_io = ''                                          # BVH file generator
-gen_prim = 'tools/dist/build/GenPrimary/GenPrimary'  # Primary rays generator
-gen_shadow = 'tools/dist/build/GenShadow/GenShadow'  # Shadow rays generator
-gen_random = 'tools/dist/build/GenRandom/GenRandom'  # Random rays generator
-fbuf2png = 'tools/dist/build/FBufToPng/FBufToPng'    # FBUF to PNG converter
+gen_prim = 'build/src/gen_primary'                   # Primary rays generator
+gen_shadow = 'build/src/gen_shadow'                  # Shadow rays generator
+gen_random = 'build/src/gen_random'                  # Random rays generator
+fbuf2png = 'build/src/fbuf2png'                      # FBUF to PNG converter
 
 # Generator tools options
 num_cores = """ + str(multiprocessing.cpu_count()) + """           # Number of cores used when generating BVH and ray files
