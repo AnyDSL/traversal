@@ -1,5 +1,5 @@
 set(FRONTEND_SRCS
-    frontend/bvh_file.h
+    frontend/bvh_format.h
     frontend/load_rays.cpp
     frontend/main.cpp
     frontend/loaders.h
@@ -43,9 +43,25 @@ thorin_runtime_wrap(IMPALA_OBJS IMPALA_LIBS
 
 set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
 
+# Traversal library
 add_library(traversal ${IMPALA_OBJS})
 target_link_libraries(traversal ${IMPALA_LIBS})
 target_compile_definitions(traversal PUBLIC ${FRONTEND_DEFS})
 
+# Traversal frontend
 add_executable(frontend ${FRONTEND_SRCS})
 target_link_libraries(frontend traversal)
+
+# Tools
+set(TOOLS_COMMON_SRCS
+    frontend/bvh_format.h
+    frontend/options.h
+    frontend/traversal.h
+    tools/linear.h)
+
+add_executable(fbuf2png tools/fbuf2png.cpp ${TOOLS_COMMON_SRCS})
+target_link_libraries(fbuf2png ${PNG_LIBRARIES})
+add_executable(genprimary tools/genprimary.cpp ${TOOLS_COMMON_SRCS})
+add_executable(genrandom  tools/genrandom.cpp  ${TOOLS_COMMON_SRCS})
+add_executable(genshadow  tools/genshadow.cpp  ${TOOLS_COMMON_SRCS})
+

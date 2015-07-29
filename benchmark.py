@@ -131,9 +131,9 @@ def generate_distribs(force):
             ctr = viewport['center']
             up  = viewport['up']
             p.append(spawn_silent("* Primary rays: " + name, [config['gen_prim'],
-                "-e", "(" + str(eye[0]) + ") (" + str(eye[1]) + ") (" + str(eye[2]) + ")",
-                "-c", "(" + str(ctr[0]) + ") (" + str(ctr[1]) + ") (" + str(ctr[2]) + ")",
-                "-u", "(" + str(up[0])  + ") (" + str(up[1])  + ") (" + str(up[2])  + ")",
+                "-e", str(eye[0]) + "," + str(eye[1]) + "," + str(eye[2]),
+                "-c", str(ctr[0]) + "," + str(ctr[1]) + "," + str(ctr[2]),
+                "-u", str(up[0])  + "," + str(up[1])  + "," + str(up[2]),
                 "-f", str(viewport['fov']),
                 "-w", str(viewport['width']),
                 "-h", str(viewport['height']),
@@ -170,7 +170,7 @@ def generate_distribs(force):
             q.append(spawn_silent("* Shadow rays: " + name, [config['gen_shadow'],
                 "-p", config['rays_dir'] + "/" + viewport['primary'],
                 "-d", fbuf,
-                "-l", "(" + str(light[0]) + ") (" + str(light[1]) + ") (" + str(light[2]) + ")",
+                "-l", str(light[0]) + "," + str(light[1]) + "," + str(light[2]),
                 config['rays_dir'] + "/" + name]))
 
     run_parallel(p)

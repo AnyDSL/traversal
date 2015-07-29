@@ -90,7 +90,6 @@ int main(int argc, char** argv) {
     std::cout << "Average: " << sum /1000.0 / times << " ms" << std::endl;
     std::cout << "Median: " << median / 1000.0 << " ms" << std::endl;
     std::cout << "Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
-
     
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
@@ -101,8 +100,9 @@ int main(int argc, char** argv) {
     std::cout << intr << " intersection(s)." << std::endl;
 
     std::ofstream out(output, std::ofstream::binary);
-    for (int i = 0; i < ray_count; i++)
+    for (int i = 0; i < ray_count; i++) {
         out.write((char*)&hits[i].tmax, sizeof(float));
+    }
 
     return EXIT_SUCCESS;
 }
