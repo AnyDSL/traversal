@@ -3,7 +3,7 @@
 #include <fstream>
 #include "thorin_runtime.h"
 #include "traversal.h"
-#include "bvh_file.h"
+#include "bvh_format.h"
 
 struct StackEntry {
     StackEntry() {}
@@ -14,16 +14,14 @@ struct StackEntry {
 
 bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
-    if (!in || !io::check_header(in) ||
-        !io::locate_block(in, io::BVH)) {
+    if (!in || !check_header(in) || !locate_block(in, BlockType::BVH))
         return false;
-    }
 
-    io::bvh::Header h;
-    in.read((char*)&h, sizeof(io::bvh::Header));
+    bvh::Header h;
+    in.read((char*)&h, sizeof(bvh::Header));
 
-    std::vector<io::bvh::Node> nodes(h.node_count);
-    in.read((char*)nodes.data(), sizeof(io::bvh::Node) * h.node_count);
+    std::vector<bvh::Node> nodes(h.node_count);
+    in.read((char*)nodes.data(), sizeof(bvh::Node) * h.node_count);
     
     std::vector<int32_t> prim_ids(h.prim_count);
     in.read((char*)prim_ids.data(), sizeof(int32_t) * h.prim_count);
@@ -38,7 +36,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     std::vector<Vec4> tri_stack;
     union { unsigned int i; float f; } sentinel = { 0x80000000 };
 
-    auto leaf_node = [&] (const io::bvh::Node& node) {
+    auto leaf_node = [&] (const bvh::Node& node) {
         int node_id = ~(tri_stack.size());
         for (int i = 0; i < node.prim_count; i++) {
             int tri_id = prim_ids[i + node.child_first];
@@ -62,13 +60,13 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
 
     while (!stack.empty()) {
         StackEntry top = stack.back();
-        const io::bvh::Node& n = nodes[top.node_id];
+        const bvh::Node& n = nodes[top.node_id];
         stack.pop_back();
 
         if (n.prim_count > 0) continue;
 
-        const io::bvh::Node& left = nodes[n.child_first];
-        const io::bvh::Node& right = nodes[n.child_first + 1];
+        const bvh::Node& left = nodes[n.child_first];
+        const bvh::Node& right = nodes[n.child_first + 1];
 
         int left_id;
         if (left.prim_count > 0) {

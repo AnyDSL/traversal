@@ -23,6 +23,7 @@ if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
 endif()
 
 find_package(Threads REQUIRED)
+find_package(PNG REQUIRED)
 
 add_subdirectory(src)
 

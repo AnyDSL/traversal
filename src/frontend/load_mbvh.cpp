@@ -3,21 +3,19 @@
 #include <fstream>
 #include "thorin_runtime.h"
 #include "traversal.h"
-#include "bvh_file.h"
+#include "bvh_format.h"
 
 bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
-    if (!in || !io::check_header(in) ||
-        !io::locate_block(in, io::MBVH)) {
+    if (!in || !check_header(in) || !locate_block(in, BlockType::MBVH))
         return false;
-    }
 
-    io::mbvh::Header h;
-    in.read((char*)&h, sizeof(io::mbvh::Header));
+    mbvh::Header h;
+    in.read((char*)&h, sizeof(mbvh::Header));
 
     // Read nodes
-    std::vector<io::mbvh::Node> nodes(h.node_count);
-    in.read((char*)nodes.data(), sizeof(io::mbvh::Node) * h.node_count);
+    std::vector<mbvh::Node> nodes(h.node_count);
+    in.read((char*)nodes.data(), sizeof(mbvh::Node) * h.node_count);
 
     // Read vertices
     std::vector<float> vertices(3 * h.vert_count);
@@ -27,7 +25,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     std::vector<Vec4> tri_stack;
     union { unsigned int i; float f; } sentinel = { 0x80000000 };
 
-    auto leaf_node = [&] (const io::mbvh::Node& node, int c) {
+    auto leaf_node = [&] (const mbvh::Node& node, int c) {
         int node_id = ~(tri_stack.size());
         for (int i = 0; i < node.prim_count[c]; i++) {
             int i0 = node.children[c] + i * 3, i1 = i0 + 1, i2 = i0 + 2;
@@ -43,7 +41,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     };
 
     for (int i = 0; i < h.node_count; i++) {
-        const io::mbvh::Node& src_node = nodes[i];
+        const mbvh::Node& src_node = nodes[i];
         Node dst_node;
         int k = 0;
         for (int j = 0  ; j < 4; j++) {
