@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     float3 max(hdr.scene_bb.ux, hdr.scene_bb.uy, hdr.scene_bb.uz);
     float3 ext = max - min;
 
-    std::mt19937 gen(seed);
+    std::mt19937_64 gen(seed);
     std::uniform_real_distribution<float> dis(0.0f, 1.0f);
 
     std::ofstream ray_file(parser.arguments()[0], std::ofstream::binary);
