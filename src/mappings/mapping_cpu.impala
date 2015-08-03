@@ -31,12 +31,8 @@ fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) 
 fn maxmin_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
 
 struct Node {
-    min_x: [f32 * 4],
-    min_y: [f32 * 4],
-    min_z: [f32 * 4],
-    max_x: [f32 * 4],
-    max_y: [f32 * 4],
-    max_z: [f32 * 4],
+    min_x: [f32 * 4], min_y: [f32 * 4], min_z: [f32 * 4],
+    max_x: [f32 * 4], max_y: [f32 * 4], max_z: [f32 * 4],
     children: [i32 * 4]
 }
 
