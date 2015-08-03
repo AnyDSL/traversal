@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     long long median = iter_times[times / 2];
     long long sum = std::accumulate(iter_times.begin(), iter_times.end(), 0);
     std::cout << sum / 1000.0 << "ms for " << times << " iteration(s)." << std::endl;
-    std::cout << "# " << ray_count * times * 1000000.0 / sum << " rays/sec." << std::endl;
+    std::cout << ray_count * times * 1000000.0 / sum << " rays/sec." << std::endl;
     std::cout << "# Average: " << sum / 1000.0 / times << " ms" << std::endl;
     std::cout << "# Median: " << median / 1000.0 << " ms" << std::endl;
     std::cout << "# Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
