@@ -106,25 +106,40 @@ def get_unique_rays(benchs):
 
 def ouput_table(f):
 
+    #Place holders
+    f.write("%Mappings\n");
+    for bench in config['benches']:
+        bn = os.path.basename(bench)
+        f.write("\\newcommand{\\bench"+ bn + "}{" + bn + "}\n");
+
+    for s, rays in config['scenes'].items():
+        sn = remove_suffix(s, ".bvh")
+        f.write("\\newcommand{\\scene"+ sn + "}{" + sn.title() + "}\n");
+
+    #f.write("%Additional cell height")
+    #f.write("\\setlength{\\extrarowheight}{1cm}")
+    f.write("\\renewcommand{\\arraystretch}{1.5}")
+    #Table Header
     f.write("\\begin{table}\n")
 
-    #Table Header
-    #uni_benches = get_unique_benches()
     bc = len(config['benches'])
-    bc+=3   #Add first columns
+    bc+=2   #Add first columns
     f.write("\\begin{tabular}{")
-    for i in range(bc):
-        f.write("|l")
-    f.write("|")
+    f.write("|c|l!{\\vrule width 1.2pt}")
+
+    for i in range(1,bc):
+        f.write("l|")
     f.write("} \n") 
     f.write("\\hline\n")
 
     #Table 'Headline'
     f.write(" & Ray Type"),
-    f.write(" & Image"),
+    #f.write(" & Image"),
+
+    #Table
     for bench in config['benches']:
         bn = os.path.basename(bench)
-        f.write(" & " + bn),
+        f.write(" & \\bench" + bn + "{}"),
     f.write("\\\\\n")
     
     f.write("\\hline\n")
@@ -132,10 +147,10 @@ def ouput_table(f):
 
     for s, rays in config['scenes'].items():
         sn = remove_suffix(s, ".bvh")
-        #print(sn)
+
         lr = len(rays)
         f.write("\\multirow{%d}{*}" % lr)
-        f.write("{" + sn +"}")
+        f.write("{\pbox[t]{1.5cm} { \\scene" + sn +"{} \\\\ \\includegraphics[width=0.9\\linewidth]{benchmarks/results/frontend/conference-conference-shadow.png} } }")
 
         lr = len(rays)
         cr=0    
@@ -143,27 +158,25 @@ def ouput_table(f):
         for r in rays:
             rn = remove_suffix(r, ".rays")        
                     
-            #f.write("& " + rn)
+            
             #Ray Type
             ray_type = config['rays'][r]['generate']
-            f.write("& " + ray_type)
+            f.write("& " + ray_type.title())
+            #f.write("& " + rn)
 
-            cb=0
+            #cb=0
             for bench in config['benches']:
                 bn = os.path.basename(bench)
                 resdir = config['res_dir'] + "/" + bn
                 name = sn + "-" + rn
                 
                 outpath = resdir + "/" + name + ".out"
-                if cb==0:
-                    pngpath = resdir + "/" + name + ".png"
-                    f.write(" & ");
-                    if(ray_type != "random"):
-                        #f.write("{\\begin{figure}[ht]\n")
-                        #f.write("\\centering\n")
-                        f.write("{\\includegraphics[valign=c, width=0.08\\textwidth]{" + pngpath + "} } ")                        
-                        #f.write("{\\end{figure} }\n")
-                cb+=1
+                #if cb==0:
+                #    pngpath = resdir + "/" + name + ".png"
+                #    f.write(" & ");
+                #    if(ray_type != "random"):
+                #        f.write("{\\includegraphics[valign=c, width=0.08\\textwidth]{" + pngpath + "} } ")                        
+                #cb+=1
 
                 if os.path.exists(outpath):
                     for tt in parse_file(outpath):
@@ -181,10 +194,6 @@ def ouput_table(f):
             else: 
                 f.write("\hline\n")
 
-
-            #print("\t" + rn)
-    #print("\hline")
-
     f.write("\\end{tabular}\n")
     f.write("\\end{table}\n")
 
@@ -200,14 +209,17 @@ def main():
         print("benchmark.conf missing")
         sys.exit()
 
-   # if not check_config():
-   #        sys.exit()
+    if not check_config():
+        sys.exit()
+
     f = open('table.tex', 'w')
     f.write("\\documentclass{article}\n\n")
 
     f.write("\\usepackage{multirow}\n")
     f.write("\\usepackage{float}\n")
+    f.write("\\usepackage{pbox}\n")
     f.write("\\usepackage[export]{adjustbox}\n")
+    f.write("\\usepackage{array}\n")
 
     f.write("\\usepackage{graphicx}\n\n")
 
