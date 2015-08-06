@@ -23,11 +23,11 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
         let stack = allocate_stack();
 
         // Initialize traversal variables
-        let idir = vec3(real(1.0f) / dir.x, real(1.0f) / dir.y, real(1.0f) / dir.z);
+        let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
         let mut t = tmax;
         let mut u = real(0.0f);
         let mut v = real(0.0f);
-        let mut tri = intr(-1);            
+        let mut tri = intr(-1);
 
         // Traversal loop
         while !stack.is_empty() @{
@@ -37,7 +37,7 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
             }
 
             // Intersect leaves
-            while is_leaf(nodes, stack.top()) {
+            while is_leaf(stack.top()) {
                 for id, v0, v1, v2 in iterate_triangles(nodes, stack.top(), tris) {
                     intersect_ray_tri(org, dir, tmin, t, v0, v1, v2, |mask, t0, u0, v0| {
                         t = select_real(mask, t0, t);

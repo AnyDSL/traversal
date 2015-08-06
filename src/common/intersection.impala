@@ -25,8 +25,7 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, v0: Vec3, v1:
     let e1 = vec3_sub(v2, v0);
     let pvec = vec3_cross(dir, e1);
     let det = vec3_dot(e0, pvec);
-    let eps = real(1e-4f);
-    if all(abs_real(det) < eps) {
+    if all(abs_real(det) < real(flt_eps)) {
         return()
     }
 
@@ -35,7 +34,7 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, v0: Vec3, v1:
     let u = vec3_dot(tvec, pvec) * idet;
     let mut mask = u >= real(0.0f) & u <= real(1.0f);
     if any(mask) {
-        let qvec = vec3_cross(tvec, e0);               
+        let qvec = vec3_cross(tvec, e0);
         let v = vec3_dot(qvec, dir) * idet;
         mask &= v >= real(0.0f) & u + v <= real(1.0f);
         if any(mask) {
