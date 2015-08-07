@@ -55,54 +55,31 @@ fn iterate_triangles(nodes: &[Node], node_id: i32, tris: &[Vec4], body: fn (Intr
     }
 }
 
-fn iterate_children(nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (Real, Real) -> ()) -> ()) -> () {
-    let mut t: [Real * 4];
-    let mut next: [i32 * 4];
-    let mut k = 0;
-
+fn iterate_children(nodes: &[Node], node_id: i32, t: Real, stack: Stack, body: fn(Vec3, Vec3, fn (Real, Real) -> ()) -> ()) -> () {
     fn greater_eq(a: Real, b: Real) -> i32 { movmskps256(cmpps256(b, a, 2i8)) }
+    fn greater(a: Real, b: Real) -> i32 { movmskps256(cmpps256(b, a, 1i8)) }
 
-    let node = nodes(node_id);
-    for i in range(0, 4) {
-        if node.children(i) == 0 { break() }
-        let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
-        let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
+    let tmin = stack.tmin();
+    stack.pop();
 
-        body(min, max, |t0, t1| {
-            if greater_eq(t1, t0) != 0 {
-                t(k) = t0;
-                next(k) = node.children(i);
-                k++;
-            }
-        });
-    }
+    if greater(t, tmin) != 0 {
+        let node = nodes(node_id);
+        for i in range(0, 4) {
+            if node.children(i) == 0 { break() }
+            let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
+            let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
 
-    if k == 0 { stack.pop(); }
-    else if k == 1 { @stack.push(|i| { next(i) }, 1); }
-    else if k == 2 {
-        if ballot(greater_eq(t(0), t(1))) {
-            @stack.push(|i| { next(1 - i) }, 2);
-        } else {
-            @stack.push(|i| { next(i) }, 2);
+            body(min, max, |t0, t1| {
+                let t = select_real(t1 >= t0, t0, real(flt_max));
+                if greater_eq(t1, t0) != 0 {
+                    if greater(stack.tmin(), t) != 0 {
+                        stack.push_top(node.children(i), t)
+                    } else {
+                        stack.push(node.children(i), t)
+                    }
+                }
+            });
         }
-    } else {
-        // Sort intersections
-        for i in range(1, k) {
-            let u = t(i);
-            let n = next(i);
-
-            let mut j = i;
-            while j > 0 && ballot(greater_eq(u, t(j - 1))) {
-                t(j) = t(j - 1);
-                next(j) = next(j - 1);
-                j--;
-            }
-
-            t(j) = u;
-            next(j) = n;
-        }
-
-        stack.push(|i| { next(i) }, k);
     }
 }
 

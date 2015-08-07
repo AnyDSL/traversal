@@ -1,39 +1,47 @@
 struct Stack {
-    push: fn (fn (i32) -> i32, i32) -> (),
+    push: fn (i32, Real) -> (),
+    push_top: fn (i32, Real) -> (),
+    set_top: fn (i32, Real) -> (),
     pop: fn () -> (),
     top: fn () -> i32,
+    tmin: fn() -> Real,
     is_empty: fn () -> bool
 }
 
 fn is_leaf(node_id: i32) -> bool { node_id < 0 }
 
 fn allocate_stack() -> Stack {
-    let mut stack : [i32 * 64];
-    let mut id = 0;  // Stack top index
-    let mut top = 0; // Root node
     let sentinel = 0x76543210u32;
-
-    stack(0) = sentinel as i32;
-
-    fn push(nodes: fn (i32) -> i32, n: i32) -> () {
-        for i in range(0, n - 1) {
-            stack(++id) = nodes(i)
-        }
-        top = nodes(n - 1)
-    }
-
-    fn pop() -> () {
-        top = stack(id--);
-    }
-
-    fn is_empty() -> bool {
-        top == sentinel as i32
-    }
+    let mut node_stack: [i32 * 64];
+    let mut tmin_stack: [Real * 64];
+    let mut id = -1;
+    let mut top = sentinel as i32;
+    let mut tmin = real(flt_max);
 
     Stack {
-        push: push,
-        pop: pop,
+        push: |n, t| {
+            id++;
+            node_stack(id) = n;
+            tmin_stack(id) = t;
+        },
+        push_top: |n, t| {
+            id++;
+            node_stack(id) = top;
+            tmin_stack(id) = tmin;
+            top = n;
+            tmin = t;
+        },
+        set_top: |n, t| {
+            top = n;
+            tmin = t;
+        },
+        pop: || {
+            top = node_stack(id);
+            tmin = tmin_stack(id);
+            id--;
+        },
         top: || { top },
-        is_empty: is_empty
+        tmin: || { tmin },
+        is_empty: || { top == sentinel as i32 }
     }
 }
