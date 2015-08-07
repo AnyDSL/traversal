@@ -61,7 +61,7 @@ fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (
     }
 }
 
-fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec3, Vec3, fn (f32, f32) -> ()) -> ()) -> () {
+fn iterate_children(mut nodes: &[Node], node_id: i32, t: f32, stack: Stack, body: fn(Vec3, Vec3, fn (f32, f32) -> ()) -> ()) -> () {
     let mut node_ptr = &nodes(node_id) as &[f32];
     let bb0 = ldg4_f32(&node_ptr(0) as &simd[f32 * 4]);
     let bb1 = ldg4_f32(&node_ptr(4) as &simd[f32 * 4]);
@@ -81,9 +81,10 @@ fn iterate_children(mut nodes: &[Node], node_id: i32, stack: Stack, body: fn(Vec
                         children(0) = children(1);
                         children(1) = children0;
                     }
-                    stack.push(|i| { children(i) }, 2)
+                    stack.push(children(0), 0.0f);
+                    stack.set_top(children(1), 0.0f);
                 } else {
-                    stack.push(|i| { if hit0 { children(0) } else { children(1) } }, 1)
+                    stack.set_top(if hit0 { children(0) } else { children(1) }, 0.0f)
                 }
             }
         });
