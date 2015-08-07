@@ -8,6 +8,14 @@
 #include "thorin_runtime.h"
 #include "thorin_utils.h"
 
+long node_count = 0;
+extern "C" {
+    void inc(void) { node_count++; }
+    void put(const char* str) { printf("%s", str); fflush(stdout); }
+    void put_int(int i) { printf("%d", i); fflush(stdout); }
+    void put_float(float f) { printf("%f", f); fflush(stdout); }
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "No arguments. Exiting." << std::endl;
@@ -90,7 +98,7 @@ int main(int argc, char** argv) {
     std::cout << "# Average: " << sum / 1000.0 / times << " ms" << std::endl;
     std::cout << "# Median: " << median / 1000.0 << " ms" << std::endl;
     std::cout << "# Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
-    
+
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
         if (hits[i].tri_id >= 0) {
@@ -103,6 +111,8 @@ int main(int argc, char** argv) {
     for (int i = 0; i < ray_count; i++) {
         out.write((char*)&hits[i].tmax, sizeof(float));
     }
+
+    std::cout << "NODE COUNT: " << node_count << std::endl;
 
     return EXIT_SUCCESS;
 }
