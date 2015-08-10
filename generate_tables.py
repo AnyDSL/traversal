@@ -13,7 +13,9 @@ import collections
 table = {}
 
 
-time_type="Median"
+time_type="Median" #Average, Min
+print_type="megarays" #ms
+
 
 # Benchmark configuration is in benchmarks.conf
 config = {}
@@ -101,8 +103,14 @@ def get_unique_rays(benchs):
     return set(cmb_rays)
 
 
+def get_bench_nbr(bench_order, name):
+    for i in range(len(bench_order)):
+        if bench_order[i] == name:
+            return i
 
-
+def get_mapping(name):
+    return name
+    
 
 def ouput_table(f):
 
@@ -128,7 +136,7 @@ def ouput_table(f):
     f.write("|c|l!{\\vrule width 1.2pt}")
 
     for i in range(1,bc):
-        f.write("l|")
+        f.write("r|")
     f.write("} \n") 
     f.write("\\hline\n")
 
@@ -136,21 +144,37 @@ def ouput_table(f):
     f.write(" & Ray Type"),
     #f.write(" & Image"),
 
+    bench_order=[]
     #Table
     for bench in config['benches']:
         bn = os.path.basename(bench)
+        bench_order.append(bn)
+
+
+    for bn in bench_order:
         f.write(" & \\bench" + bn + "{}"),
+        if bn in config['mappings']:
+            f.write("{\\tiny (su cmp to \\bench%s{}) }" % config['mappings'][bn])
     f.write("\\\\\n")
     
     f.write("\\hline\n")
 
+    
 
     for s, rays in config['scenes'].items():
         sn = remove_suffix(s, ".bvh")
 
         lr = len(rays)
         f.write("\\multirow{%d}{*}" % lr)
-        f.write("{\pbox[t]{1.5cm} { \\scene" + sn +"{} \\\\ \\includegraphics[width=0.9\\linewidth]{benchmarks/results/frontend/conference-conference-shadow.png} } }")
+        
+#Add png 
+        tex_graphics="n/a"
+        png_path = config['obj_dir']+"/"+sn+".png"
+        if os.path.isfile(png_path):
+            tex_graphics = "\\includegraphics[width=0.9\\linewidth]{" + png_path + "}"
+
+
+        f.write("{\pbox[t]{1.5cm} { \\scene" + sn +"{} \\\\ " + tex_graphics + " } }")
 
         lr = len(rays)
         cr=0    
@@ -164,27 +188,47 @@ def ouput_table(f):
             f.write("& " + ray_type.title())
             #f.write("& " + rn)
 
-            #cb=0
+            width = config['rays'][r]['width']
+            height = config['rays'][r]['width']
+
+            nbr_of_rays = width * height
+
+            row={}
+
             for bench in config['benches']:
                 bn = os.path.basename(bench)
                 resdir = config['res_dir'] + "/" + bn
                 name = sn + "-" + rn
                 
                 outpath = resdir + "/" + name + ".out"
-                #if cb==0:
-                #    pngpath = resdir + "/" + name + ".png"
-                #    f.write(" & ");
-                #    if(ray_type != "random"):
-                #        f.write("{\\includegraphics[valign=c, width=0.08\\textwidth]{" + pngpath + "} } ")                        
-                #cb+=1
+          
 
                 if os.path.exists(outpath):
                     for tt in parse_file(outpath):
                         if tt[0] == time_type:
                             break;
-                    f.write(" & %s " % (tt[1]))
+
+                    ms = float(tt[1])
+                
+                    if print_type=="megarays":
+                        megarays = (nbr_of_rays * 1000 / ms) / 1000000
+                        row[bn] = "%.4f" % (megarays)
+                    else: 
+                        row[bn] = "%.4f" % (ms)
+
                 else:
-                    f.write(" & n/a")
+                    row[bn] = "n/a"
+
+
+            for bn in bench_order:
+                f.write(" & " + row[bn])
+                if bn in config['mappings']:
+                    mapped = config['mappings'][bn]
+                    res_a = row[bn]
+                    res_b = row[mapped]
+                    percentage = ((float(res_a) / float(res_b)) - 1) * 100
+                    f.write(" {\\tiny (%.2f\\%%)  }" % percentage)
+
             f.write("\\\\ \n")
 
             #Last line must be a hline
@@ -195,6 +239,9 @@ def ouput_table(f):
                 f.write("\hline\n")
 
     f.write("\\end{tabular}\n")
+
+    f.write("\\caption{In %s}" % (print_type))
+
     f.write("\\end{table}\n")
 
             
@@ -213,7 +260,7 @@ def main():
         sys.exit()
 
     f = open('table.tex', 'w')
-    f.write("\\documentclass{article}\n\n")
+    f.write("\\documentclass{article}\n\n")                                 
 
     f.write("\\usepackage{multirow}\n")
     f.write("\\usepackage{float}\n")
