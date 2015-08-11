@@ -11,6 +11,7 @@
 #include <random>
 
 long node_count = 0;
+
 extern "C" {
     void inc(void) { node_count++; }
     void put(const char* str) { printf("%s", str); fflush(stdout); }
@@ -134,11 +135,6 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    std::random_device rd;
-    std::mt19937 mt(rd());
-    std::uniform_real_distribution<float> dist(0.f, 1.f);
-
-
     thorin_init();
 
     Node* nodes;
@@ -213,12 +209,17 @@ int main(int argc, char** argv) {
         FILE *ao_f = fopen(ao_path.c_str(), "wb");
 
         if (ao_f==NULL) {
-            std::cerr << "Cannot open: " << ao_path;
+            std::cerr << "Cannot open: " << ao_path << " for writing ao" << std::endl;
             exit(1);
         }
 
-        //For convinience we create as many blocks as we have want to take ao_samples
-        //Hence, each block contains only ray_count rays;
+        //Init RNG
+        std::random_device rd;
+        std::mt19937 mt(rd());
+        std::uniform_real_distribution<float> dist(0.f, 1.f);
+
+        //For convinience we create as many blocks as we want to take ao_samples
+        //Hence, each block contains only ray_count rays
         int nbr_of_blocks = ao_samples;       
         uint ao_samples_per_block = ray_count;
 
@@ -253,9 +254,7 @@ int main(int argc, char** argv) {
 
                     if(absDist<0) {
                         normal = normal * make_vec4(-1);
-                    }
-                    
-
+                    }               
 
                     for(int j=0; j < ao_samples; j++) {           
                         
@@ -294,17 +293,6 @@ int main(int argc, char** argv) {
                 }
             }
         
-            //thorin_free(hits);
-            //thorin_free(rays);
-
-            //Reset hits
-            /*
-            for (int i = 0; i < ao_samples_per_block; i++) {
-                    ao_hits[i].tri_id = -1;
-                    ao_hits[i].tmax = ao_tmax; 
-            }
-            */
-
             //intersect
             traverse_accel(nodes, ao_rays, tris, ao_hits, ao_samples_per_block);
 

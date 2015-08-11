@@ -152,9 +152,13 @@ def ouput_table(f):
 
 
     for bn in bench_order:
-        f.write(" & \\bench" + bn + "{}"),
+        f.write(" & ");        
         if bn in config['mappings']:
-            f.write("{\\tiny (su cmp to \\bench%s{}) }" % config['mappings'][bn])
+            f.write(" \\begin{tabular}{c} ");
+        f.write(" \\bench" + bn + "{}"),
+        if bn in config['mappings']:
+            f.write("\\\\");
+            f.write(" {\\tiny (su cmp to \\bench%s{}) } \\end{tabular}" % config['mappings'][bn])
     f.write("\\\\\n")
     
     f.write("\\hline\n")
@@ -168,10 +172,10 @@ def ouput_table(f):
         f.write("\\multirow{%d}{*}" % lr)
         
 #Add png 
-        tex_graphics="n/a"
-        png_path = config['obj_dir']+"/"+sn+".png"
-        if os.path.isfile(png_path):
-            tex_graphics = "\\includegraphics[width=0.9\\linewidth]{" + png_path + "}"
+        tex_graphics=""
+#        png_path = config['obj_dir']+"/"+sn+".png"
+#        if os.path.isfile(png_path):
+#            tex_graphics = "\\includegraphics[width=0.9\\linewidth]{" + png_path + "}"
 
 
         f.write("{\pbox[t]{1.5cm} { \\scene" + sn +"{} \\\\ " + tex_graphics + " } }")
@@ -268,7 +272,10 @@ def main():
     f.write("\\usepackage[export]{adjustbox}\n")
     f.write("\\usepackage{array}\n")
 
-    f.write("\\usepackage{graphicx}\n\n")
+    f.write("\\usepackage{graphicx}\n")
+    f.write("\\usepackage[margin=2cm]{geometry}\n\n")
+
+
 
     f.write("\\begin{document}\n")
 
