@@ -8,12 +8,91 @@
 #include "thorin_runtime.h"
 #include "thorin_utils.h"
 
+#include <random>
+
 long node_count = 0;
 extern "C" {
     void inc(void) { node_count++; }
     void put(const char* str) { printf("%s", str); fflush(stdout); }
     void put_int(int i) { printf("%d", i); fflush(stdout); }
     void put_float(float f) { printf("%f", f); fflush(stdout); }
+}
+
+
+
+inline Vec4 make_vec4(const float x, const float y, const float z, const float w=1.f) {
+    Vec4 v;
+    v.x = x;
+    v.y = y;
+    v.z = z;
+    v.w = w;
+    return v;
+}
+
+inline Vec4 make_vec4(const float a) {
+    Vec4 v;
+    v.x = a;
+    v.y = a;
+    v.z = a;
+    v.w = a;
+    return v;
+}
+
+inline Vec4 operator - (Vec4 a, Vec4 b) {
+    return make_vec4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w);
+}
+
+inline Vec4 operator + (Vec4 a, Vec4 b) {
+    return make_vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
+
+inline Vec4 operator * (Vec4 a, Vec4 b) {
+    return make_vec4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
+}
+
+inline float dot(Vec4 a, Vec4 b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+inline Vec4 normalize(Vec4 a) {
+    float lensq = dot(a, a);
+    return a * make_vec4(1.0f / sqrtf(lensq));
+}
+
+inline float length(Vec4 a) {
+   float lensq = dot(a, a);
+   return sqrt(lensq);
+}
+
+
+inline Vec4 cross(Vec4 a, Vec4 b) {
+    return make_vec4(a.y * b.z - a.z * b.y,
+                    a.z * b.x - a.x * b.z, 
+                    a.x * b.y - a.y * b.x);
+}
+
+
+Vec4 cosine_weighted_sample_hemisphere(float u1, float u2)
+{
+    const float r = sqrt(u1);
+    const float theta = 2 * M_PI * u2;
+ 
+    const float x = r * cos(theta);
+    const float y = r * sin(theta);
+ 
+    return make_vec4(x, y, sqrt(std::max(0.0f, 1 - u1)));
+}
+
+
+Vec4 sample_sphere(float u1, float u2) {
+    const float theta = 2 * M_PI * u1;
+    const float phi = acos(2 * u2 -1);
+
+    const float x = sin(theta) * cos(phi);
+    const float y = sin(theta) * sin(phi);
+    const float z = cos(theta);
+
+    return make_vec4(x,y,z); 
 }
 
 int main(int argc, char** argv) {
@@ -28,6 +107,10 @@ int main(int argc, char** argv) {
     int times, warmup;
     bool help;
 
+    std::string ao_path("");
+    int ao_samples=32;
+    float ao_dist=1e9f;
+
     ArgParser parser(argc, argv);
     parser.add_option<bool>("help", "h", "Shows this message", help, false);
     parser.add_option<std::string>("accel", "a", "Sets the acceleration structure file name", accel_file, "input.bvh", "input.bvh");
@@ -37,6 +120,9 @@ int main(int argc, char** argv) {
     parser.add_option<std::string>("output", "o", "Sets the output file name", output, "output.fbuf", "output.fbuf");
     parser.add_option<float>("tmin", "tmin", "Sets the minimum t parameter along the rays", tmin, 0.0f, "t");
     parser.add_option<float>("tmax", "tmax", "Sets the maximum t parameter along the rays", tmax, 1e9f, "t");
+    parser.add_option<std::string>("ao", "ao", "Write ao file", ao_path, "", "path");
+    parser.add_option<int>("ao-samples", "aos", "Nbr of ao samples", ao_samples, 16, " samples");
+    parser.add_option<float>("ao-dist", "aod", "Sets the maximum distance for ao rays", ao_dist, 1e9f, "length");
 
     if (!parser.parse()) {
         return EXIT_FAILURE;
@@ -46,6 +132,11 @@ int main(int argc, char** argv) {
         parser.usage();
         return EXIT_SUCCESS;
     }
+
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_real_distribution<float> dist(0.f, 1.f);
+
 
     thorin_init();
 
@@ -113,6 +204,126 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "NODE COUNT: " << node_count << std::endl;
+
+
+    //Ambient Occlusion
+   if(ao_path.compare("") != 0) {
+
+        FILE *ao_f = fopen(ao_path.c_str(), "wb");
+
+        if (ao_f==NULL) {
+            std::cerr << "Cannot open: " << ao_path;
+            exit(1);
+        }
+        
+        uint ao_samples_total = ray_count * ao_samples;
+        Ray *ao_rays = new Ray[ao_samples_total];
+
+
+        for (int i = 0; i < ray_count; i++) {
+            int triid = hits[i].tri_id;
+           
+            if(triid!=-1) {
+                float t = hits[i].tmax;
+                Vec4 o = make_vec4(t * 0.9) * rays[i].dir + rays[i].org;
+                o.w = tmin;
+
+                //Face normal
+                Vec4 v1 = tris[triid + 0];
+                Vec4 v2 = tris[triid + 1];
+                Vec4 v3 = tris[triid + 2];
+            
+                Vec4 e1 = v2-v1;
+                Vec4 e2 = v3-v1;
+            
+                Vec4 normal = normalize(cross(e1, e2));
+            
+                //Flip normal?
+                float d = -dot(normal, v1);
+                float absDist = (dot(rays[i].org, normal) + d);
+
+                if(absDist<0) {
+                    normal = normal * make_vec4(-1);
+                }
+                
+
+
+                for(int j=0; j < ao_samples; j++) {           
+                    
+                    //Sample Hemisphere
+                    float u1 = dist(mt);
+                    float u2 = dist(mt);
+
+                    Vec4 nh = cosine_weighted_sample_hemisphere(u1, u2);
+                    Vec4 tangent = normalize(e1);
+                    Vec4 bitangent = normalize(cross(normal, tangent));
+
+                    Vec4 d;
+                    d.x = nh.x * tangent.x + nh.y * bitangent.x + nh.z * normal.x;
+                    d.y = nh.x * tangent.y + nh.y * bitangent.y + nh.z * normal.y;
+                    d.z = nh.x * tangent.z + nh.y * bitangent.z + nh.z * normal.z;
+    
+                    d = normalize(d);
+                    d.w = ao_dist;
+
+                    //Spherical Sampling
+/*                                        
+                    float u1 = dist(mt);
+                    float u2 = dist(mt);
+
+                    Vec4 d = sample_sphere(u1, u2);
+                    d.w = ao_dist;
+  */                  
+
+                    Ray ao_ray;
+                    ao_ray.org = o;
+                    ao_ray.dir = d;
+                    ao_rays[i * ao_samples + j] = ao_ray;
+                }
+            } else {
+                memset(&(ao_rays[i * ao_samples]), 0, sizeof(Ray) * ao_samples);
+
+            }
+        }
+    
+        //thorin_free(hits);
+        thorin_free(rays);
+
+        //Create and reset hits
+        Hit* ao_hits = thorin_new<Hit>(ao_samples_total);
+        for (int i = 0; i < ao_samples_total; i++) {
+                ao_hits[i].tri_id = -1;
+                ao_hits[i].tmax = ao_dist;        
+        }
+
+
+        //intersect
+        traverse_accel(nodes, ao_rays, tris, ao_hits, ao_samples_total);
+
+
+        //Write results
+        for(int i = 0; i < ray_count; i++) {
+            int sum=0;
+            if(hits[i].tri_id != -1) {
+                for(int j = 0; j < ao_samples; j++) {
+                    Hit h = ao_hits[i * ao_samples + j];
+                    if(h.tri_id!=-1)
+                        sum++;
+                }
+
+                float ao_fac =  1.f - (sum/(float) ao_samples);
+                fwrite (&ao_fac , sizeof(float), 1, ao_f);
+            } else {
+                fwrite (0 , sizeof(float), 1, ao_f);
+            }
+        }
+
+        delete ao_rays;
+
+        fclose(ao_f);
+    } //ao
+
+
 
     return EXIT_SUCCESS;
 }
