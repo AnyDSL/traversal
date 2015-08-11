@@ -108,8 +108,8 @@ int main(int argc, char** argv) {
     bool help;
 
     std::string ao_path("");
-    int ao_samples=32;
-    float ao_dist=1e9f;
+    int ao_samples;
+    float ao_tmin, ao_tmax;
 
     ArgParser parser(argc, argv);
     parser.add_option<bool>("help", "h", "Shows this message", help, false);
@@ -122,7 +122,8 @@ int main(int argc, char** argv) {
     parser.add_option<float>("tmax", "tmax", "Sets the maximum t parameter along the rays", tmax, 1e9f, "t");
     parser.add_option<std::string>("ao", "ao", "Write ao file", ao_path, "", "path");
     parser.add_option<int>("ao-samples", "aos", "Nbr of ao samples", ao_samples, 16, " samples");
-    parser.add_option<float>("ao-dist", "aod", "Sets the maximum distance for ao rays", ao_dist, 1e9f, "length");
+    parser.add_option<float>("ao-tmin", "aotmin", "Sets the minimum distance for ao rays", ao_tmin, 0.001f, "length");
+    parser.add_option<float>("ao-tmax", "aotmax", "Sets the maximum distance for ao rays", ao_tmax, 10.f, "length");
 
     if (!parser.parse()) {
         return EXIT_FAILURE;
@@ -207,7 +208,7 @@ int main(int argc, char** argv) {
 
 
     //Ambient Occlusion
-   if(ao_path.compare("") != 0) {
+    if(ao_path.compare("") != 0) {
 
         FILE *ao_f = fopen(ao_path.c_str(), "wb");
 
@@ -215,110 +216,120 @@ int main(int argc, char** argv) {
             std::cerr << "Cannot open: " << ao_path;
             exit(1);
         }
-        
-        uint ao_samples_total = ray_count * ao_samples;
-        Ray *ao_rays = new Ray[ao_samples_total];
+
+        //For convinience we create as many blocks as we have want to take ao_samples
+        //Hence, each block contains only ray_count rays;
+        int nbr_of_blocks = ao_samples;       
+        uint ao_samples_per_block = ray_count;
+
+        Ray *ao_rays =  thorin_new<Ray>(ao_samples_per_block);
+        int block_size = ray_count / nbr_of_blocks;
+        Hit* ao_hits = thorin_new<Hit>(ao_samples_per_block);
+
+        for(int block = 0; block < nbr_of_blocks; block++) {
 
 
-        for (int i = 0; i < ray_count; i++) {
-            int triid = hits[i].tri_id;
-           
-            if(triid!=-1) {
-                float t = hits[i].tmax;
-                Vec4 o = make_vec4(t * 0.9) * rays[i].dir + rays[i].org;
-                o.w = tmin;
+            for (int i = block * block_size; i < (block+1) * block_size; i++) {
+                int triid = hits[i].tri_id;
+               
+                if(triid!=-1) {
+                    float t = hits[i].tmax;
+                    Vec4 o = make_vec4(t) * rays[i].dir + rays[i].org;
+                    o.w = ao_tmin;
 
-                //Face normal
-                Vec4 v1 = tris[triid + 0];
-                Vec4 v2 = tris[triid + 1];
-                Vec4 v3 = tris[triid + 2];
-            
-                Vec4 e1 = v2-v1;
-                Vec4 e2 = v3-v1;
-            
-                Vec4 normal = normalize(cross(e1, e2));
-            
-                //Flip normal?
-                float d = -dot(normal, v1);
-                float absDist = (dot(rays[i].org, normal) + d);
-
-                if(absDist<0) {
-                    normal = normal * make_vec4(-1);
-                }
+                    //Face normal
+                    Vec4 v1 = tris[triid + 0];
+                    Vec4 v2 = tris[triid + 1];
+                    Vec4 v3 = tris[triid + 2];
                 
+                    Vec4 e1 = v2-v1;
+                    Vec4 e2 = v3-v1;
+                
+                    Vec4 normal = normalize(cross(e1, e2));
+                
+                    //Flip normal?
+                    float d = -dot(normal, v1);
+                    float absDist = (dot(rays[i].org, normal) + d);
 
-
-                for(int j=0; j < ao_samples; j++) {           
+                    if(absDist<0) {
+                        normal = normal * make_vec4(-1);
+                    }
                     
-                    //Sample Hemisphere
-                    float u1 = dist(mt);
-                    float u2 = dist(mt);
 
-                    Vec4 nh = cosine_weighted_sample_hemisphere(u1, u2);
-                    Vec4 tangent = normalize(e1);
-                    Vec4 bitangent = normalize(cross(normal, tangent));
 
-                    Vec4 d;
-                    d.x = nh.x * tangent.x + nh.y * bitangent.x + nh.z * normal.x;
-                    d.y = nh.x * tangent.y + nh.y * bitangent.y + nh.z * normal.y;
-                    d.z = nh.x * tangent.z + nh.y * bitangent.z + nh.z * normal.z;
-    
-                    d = normalize(d);
-                    d.w = ao_dist;
+                    for(int j=0; j < ao_samples; j++) {           
+                        
+                        //Sample Hemisphere
+                        float u1 = dist(mt);
+                        float u2 = dist(mt);
 
-                    //Spherical Sampling
-/*                                        
-                    float u1 = dist(mt);
-                    float u2 = dist(mt);
+                        Vec4 nh = cosine_weighted_sample_hemisphere(u1, u2);
+                        Vec4 tangent = normalize(e1);
+                        Vec4 bitangent = normalize(cross(normal, tangent));
 
-                    Vec4 d = sample_sphere(u1, u2);
-                    d.w = ao_dist;
-  */                  
+                        Vec4 d;
+                        d.x = nh.x * tangent.x + nh.y * bitangent.x + nh.z * normal.x;
+                        d.y = nh.x * tangent.y + nh.y * bitangent.y + nh.z * normal.y;
+                        d.z = nh.x * tangent.z + nh.y * bitangent.z + nh.z * normal.z;
+        
+                        d = normalize(d);
+                        d.w = ao_tmax;
 
-                    Ray ao_ray;
-                    ao_ray.org = o;
-                    ao_ray.dir = d;
-                    ao_rays[i * ao_samples + j] = ao_ray;
+                        //Spherical Sampling
+                        /*                                        
+                        float u1 = dist(mt);
+                        float u2 = dist(mt);
+
+                        Vec4 d = sample_sphere(u1, u2);
+                        d.w = ao_tmax;
+                        */                  
+
+                        Ray ao_ray;
+                        ao_ray.org = o;
+                        ao_ray.dir = d;
+                        ao_rays[(i - block * block_size ) * ao_samples + j] = ao_ray;
+                    }
+                } else {
+                    memset(&(ao_rays[(i - block * block_size ) * ao_samples]), 0, sizeof(Ray) * ao_samples);
                 }
-            } else {
-                memset(&(ao_rays[i * ao_samples]), 0, sizeof(Ray) * ao_samples);
-
             }
-        }
-    
-        //thorin_free(hits);
-        thorin_free(rays);
+        
+            //thorin_free(hits);
+            //thorin_free(rays);
 
-        //Create and reset hits
-        Hit* ao_hits = thorin_new<Hit>(ao_samples_total);
-        for (int i = 0; i < ao_samples_total; i++) {
-                ao_hits[i].tri_id = -1;
-                ao_hits[i].tmax = ao_dist;        
-        }
+            //Reset hits
+            /*
+            for (int i = 0; i < ao_samples_per_block; i++) {
+                    ao_hits[i].tri_id = -1;
+                    ao_hits[i].tmax = ao_tmax; 
+            }
+            */
+
+            //intersect
+            traverse_accel(nodes, ao_rays, tris, ao_hits, ao_samples_per_block);
 
 
-        //intersect
-        traverse_accel(nodes, ao_rays, tris, ao_hits, ao_samples_total);
+            //Write results
+            for(int i = 0; i < block_size; i++) {
+                int sum=0;
+                if(hits[block * block_size + i].tri_id != -1) {
+                    for(int j = 0; j < ao_samples; j++) {
+                        Hit h = ao_hits[i * ao_samples + j];
+                        if(h.tri_id!=-1)
+                            sum++;
+                    }
 
-
-        //Write results
-        for(int i = 0; i < ray_count; i++) {
-            int sum=0;
-            if(hits[i].tri_id != -1) {
-                for(int j = 0; j < ao_samples; j++) {
-                    Hit h = ao_hits[i * ao_samples + j];
-                    if(h.tri_id!=-1)
-                        sum++;
+                    float ao_fac =  1.f - (sum/(float) ao_samples);
+                    fwrite (&ao_fac , sizeof(float), 1, ao_f);
+                } else {
+                    float zero=0.f;
+                    fwrite (&zero , sizeof(float), 1, ao_f);
                 }
-
-                float ao_fac =  1.f - (sum/(float) ao_samples);
-                fwrite (&ao_fac , sizeof(float), 1, ao_f);
-            } else {
-                fwrite (0 , sizeof(float), 1, ao_f);
             }
-        }
 
-        delete ao_rays;
+
+        }
+        thorin_free(ao_rays);
 
         fclose(ao_f);
     } //ao
