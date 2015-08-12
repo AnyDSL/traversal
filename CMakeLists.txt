@@ -26,6 +26,9 @@ find_package(Threads REQUIRED)
 find_package(PNG REQUIRED)
 include_directories(${PNG_INCLUDE_DIR})
 
+find_package(SDL REQUIRED)
+include_directories(${SDL_INCLUDE_DIR})
+
 add_subdirectory(src)
 
 get_target_property(CONF_TRAVERSAL_LIBRARY traversal LOCATION)
