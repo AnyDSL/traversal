@@ -28,6 +28,8 @@ find_package(PNG REQUIRED)
 add_subdirectory(src)
 
 get_target_property(CONF_TRAVERSAL_LIBRARY traversal LOCATION)
+get_target_property(CONF_TRAVERSAL_LIBRARIES traversal LINK_LIBRARIES)
+list(APPEND CONF_TRAVERSAL_LIBRARIES "${CONF_TRAVERSAL_LIBRARY}")
 get_target_property(CONF_TRAVERSAL_EXECUTABLE frontend LOCATION)
 configure_file(TraversalConfig.cmake.in "${CMAKE_CURRENT_SOURCE_DIR}/TraversalConfig.cmake" @ONLY)
 
