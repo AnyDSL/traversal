@@ -24,6 +24,7 @@ endif()
 
 find_package(Threads REQUIRED)
 find_package(PNG REQUIRED)
+include_directories(${PNG_INCLUDE_DIR})
 
 add_subdirectory(src)
 
