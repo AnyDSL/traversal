@@ -115,6 +115,7 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
         const int block_limit = (i + block_size > img_size) ? img_size - i : block_size;
 
         // Generate ambient occlusion rays
+        int ao_rays = 0;
         for (int j = 0; j < block_limit; j++) {
             const int ray_id = i + j;
             const int tri_id = primary.hits[ray_id].tri_id;
@@ -149,29 +150,32 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
                     ao_buffer.rays[j * cfg.samples + k].org = make_vec4(org, cfg.ao_offset);
                     ao_buffer.rays[j * cfg.samples + k].dir = make_vec4(dir, cfg.ao_tmax);
                 }
+                ao_rays++;
             } else {
                 // Do not generate garbage for rays that go out of the scene
                 memset(&ao_buffer.rays[j * cfg.samples], 0, sizeof(Ray) * cfg.samples);
             }
         }
 
-        // Get the intersection results
-        ao_buffer.traverse(nodes, tris);
+        if (ao_rays > 0) {
+            // Get the intersection results
+            ao_buffer.traverse(nodes, tris);
 
-        // Write the contribution to the image
-        for (int j = 0; j < block_limit; j++) {
-            float color = 0.0f;
+            // Write the contribution to the image
+            for (int j = 0; j < block_limit; j++) {
+                float color = 0.0f;
 
-            if(primary.hits[i + j].tri_id >= 0) {
-                int count = 0;
-                for(int k = j * cfg.samples; k < (j + 1) * cfg.samples; k++) {
-                    if (ao_buffer.hits[k].tri_id >= 0)
-                        count++;
+                if(primary.hits[i + j].tri_id >= 0) {
+                    int count = 0;
+                    for(int k = j * cfg.samples; k < (j + 1) * cfg.samples; k++) {
+                        if (ao_buffer.hits[k].tri_id >= 0)
+                            count++;
+                    }
+                    color = 1.f - (count / (float)cfg.samples);
                 }
-                color = 1.f - (count / (float)cfg.samples);
-            }
 
-            img[i + j] += color;
+                img[i + j] += color;
+            }
         }
     }
 }
@@ -218,6 +222,12 @@ bool handle_events(View& view, int& accum) {
     return false;
 }
 
+void flush_events() {
+    SDL_PumpEvents();
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {}
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "No arguments. Exiting." << std::endl;
@@ -233,11 +243,11 @@ int main(int argc, char** argv) {
     parser.add_option<std::string>("accel", "a", "Sets the acceleration structure file name", accel_file, "input.bvh", "input.bvh");
     parser.add_option<float>("clip-dist", "clip", "Sets the view clipping distance", cfg.clip, 1e9f, "t");
     parser.add_option<std::string>("output", "o", "Write an fbuf file containing the rendered image and exit", output, "", "path");
-    parser.add_option<int>("ao-samples", "s", "Number of ambient occlusion samples", cfg.samples, 16, " samples");
+    parser.add_option<int>("ao-samples", "s", "Number of ambient occlusion samples", cfg.samples, 4, " samples");
     parser.add_option<float>("ao-offset", "off", "Sets the offset for ambient occlusion rays", cfg.ao_offset, 0.001f, "t");
-    parser.add_option<float>("ao-tmax", "tmax", "Sets the maximum distance for ambient occlusion rays", cfg.ao_tmax, 10.f, "t");
-    parser.add_option<int>("width", "w", "Sets the viewport width", cfg.width, 1024, "pixels");
-    parser.add_option<int>("height", "h", "Sets the viewport height", cfg.height, 1024, "pixels");
+    parser.add_option<float>("ao-dist", "d", "Sets the maximum distance for ambient occlusion rays", cfg.ao_tmax, 10.f, "t");
+    parser.add_option<int>("width", "w", "Sets the viewport width", cfg.width, 512, "pixels");
+    parser.add_option<int>("height", "h", "Sets the viewport height", cfg.height, 512, "pixels");
     parser.add_option<std::string>("eye", "e", "Sets the eye position", eye_str, "0,0,-10", "x,y,z");
     parser.add_option<std::string>("center", "c", "Sets the center position", center_str, "0,0,0", "x,y,z");
     parser.add_option<std::string>("up", "u", "Sets the up vector", up_str, "0,1,0", "x,y,z");
@@ -268,7 +278,7 @@ int main(int argc, char** argv) {
 
     std::vector<float> image(cfg.width * cfg.height);
     RayBuffer primary(image.size());
-    RayBuffer ao_buffer(image.size() * 16);
+    RayBuffer ao_buffer(image.size() * 4);
 
     if (output.length()) {
         // Render to a file and exit
@@ -296,6 +306,8 @@ int main(int argc, char** argv) {
         normalize(cam.up),       // Up
         100.0f, 0.005f, 1.0f     // View distance, rotation speed, translation speed
     };
+
+    flush_events();
 
     bool done = false;
     int accum = 0;
