@@ -2,21 +2,7 @@
 #include <fstream>
 #include "../frontend/options.h"
 #include "linear.h"
-
-struct Camera {
-    float3 right;
-    float3 up;
-    float3 dir;
-};
-
-static inline Camera gen_camera(const float3& eye, const float3& center, const float3& up, float fov, float ratio) {
-    Camera cam;
-    const float f = tanf(radians(fov / 2));
-    cam.dir = normalize(center - eye);
-    cam.right = normalize(cross(cam.dir, up)) * (f * ratio);
-    cam.up = cross(cam.right, cam.dir) * f;
-    return cam;
-}
+#include "camera.h"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -72,7 +58,7 @@ int main(int argc, char** argv) {
             const float3 dir = cam.dir + cam.right * kx + cam.up * ky;
             ray_file.write((const char*)&eye, sizeof(float) * 3);
             ray_file.write((const char*)&dir, sizeof(float) * 3);
-        }    
+        }
     }
 
     return EXIT_SUCCESS;
