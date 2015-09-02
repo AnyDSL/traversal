@@ -63,7 +63,7 @@ inline bool locate_block(std::istream& is, BlockType type) {
         offset -= sizeof(BlockType);
     } while (!is.eof() && block_type != (uint32_t)type);
 
-    return is;
+    return static_cast<bool>(is);
 }
 
 #endif 
