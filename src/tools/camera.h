@@ -13,7 +13,7 @@ inline Camera gen_camera(const float3& eye, const float3& center, const float3& 
     const float f = tanf(radians(fov / 2));
     cam.dir = normalize(center - eye);
     cam.right = normalize(cross(cam.dir, up)) * (f * ratio);
-    cam.up = cross(cam.right, cam.dir) * f;
+    cam.up = normalize(cross(cam.right, cam.dir)) * f;
     cam.eye = eye;
     return cam;
 }
