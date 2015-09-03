@@ -47,18 +47,19 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, tri: Tri, int
     let det = vec3_dot(n, dir);
     let abs_det = abs_real(det);
 
-    let u = copysign_real(vec3_dot(r, e2), det);
+    let u = prodsign_real(vec3_dot(r, e2), det);
     let mut mask = u >= real(0.0f);
 
-    let v = copysign_real(vec3_dot(r, e1), det);
+    let v = prodsign_real(vec3_dot(r, e1), det);
     mask &= v >= real(0.0f);
 
     let w = abs_det - u - v;
     mask &= w >= real(0.0f);
 
     if any(mask) {
-        let t = copysign_real(vec3_dot(n, c), det);
+        let t = prodsign_real(vec3_dot(n, c), det);
         mask &= (t >= abs_det * tmin) & (t <= abs_det * tmax);
+        mask &= det != real(0.0f);
         if any(mask) {
             let inv_det = rcp_real(abs_det);
             intr(mask, t * inv_det, u * inv_det, v * inv_det);

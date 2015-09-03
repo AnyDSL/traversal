@@ -46,7 +46,7 @@ namespace mbvh {
 inline bool check_header(std::istream& is) {
     uint32_t magic;
     is.read((char*)&magic, sizeof(uint32_t));
-    return magic == 0x312F1A57;
+    return magic == 0x313F1A57;
 }
 
 inline bool locate_block(std::istream& is, BlockType type) {
