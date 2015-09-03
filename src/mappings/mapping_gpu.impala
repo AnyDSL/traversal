@@ -15,7 +15,8 @@ fn intr(x: i32) -> Intr { x }
 fn any(m: Mask) -> bool { m }
 fn all(m: Mask) -> bool { m }
 fn abs_real(r: Real) -> Real { fabsf(r) }
-fn safe_rcp(r: Real) -> Real { if abs_real(r) < flt_eps { copysignf(flt_max, r) } else { 1.0f / r } }
+fn rcp_real(r: Real) -> Real { if abs_real(r) < flt_eps { copysignf(flt_max, r) } else { 1.0f / r } }
+fn copysign_real(x: Real, y: Real) -> Real { copysignf(x, y) }
 fn min_real(a: Real, b: Real) -> Real { fminf(a, b) }
 fn max_real(a: Real, b: Real) -> Real { fmaxf(a, b) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast_i32_f32(minmin(bitcast_f32_i32(a), bitcast_f32_i32(b), bitcast_f32_i32(c))) }

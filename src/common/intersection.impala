@@ -1,5 +1,16 @@
+struct Tri {
+    vertex: fn (i32) -> Vec3,
+    edge: fn (i32) -> Vec3,
+    normal: fn () -> Vec3
+}
+
+struct Box {
+    min: fn () -> Vec3,
+    max: fn () -> Vec3
+}
+
 // SLABS ray box intersection test
-fn intersect_ray_box(org: Vec3, idir: Vec3, tmin: Real, tmax: Real, min: Vec3, max: Vec3, intr: fn (Real, Real) -> ()) -> () {
+fn intersect_ray_box(org: Vec3, idir: Vec3, tmin: Real, tmax: Real, box: Box, intr: fn (Real, Real) -> ()) -> () {
     fn span_begin(a: Real, b: Real, c: Real, d: Real, e: Real, f: Real, g: Real) -> Real {
         maxmax_real(min_real(a, b), min_real(c, d), minmax_real(e, f, g))
     }
@@ -8,41 +19,49 @@ fn intersect_ray_box(org: Vec3, idir: Vec3, tmin: Real, tmax: Real, min: Vec3, m
         minmin_real(max_real(a, b), max_real(c, d), maxmin_real(e, f, g))
     }
 
+    let min = box.min();
+    let max = box.max();
+
     let t0_x = (min.x - org.x) * idir.x;
     let t1_x = (max.x - org.x) * idir.x;
     let t0_y = (min.y - org.y) * idir.y;
     let t1_y = (max.y - org.y) * idir.y;
     let t0_z = (min.z - org.z) * idir.z;
     let t1_z = (max.z - org.z) * idir.z;
+
     let t0 = span_begin(t0_x, t1_x, t0_y, t1_y, t0_z, t1_z, tmin);
     let t1 = span_end(t0_x, t1_x, t0_y, t1_y, t0_z, t1_z, tmax);
+
     intr(t0, t1)
 }
 
 // Moeller-Trumbore triangle intersection algorithm
-fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, v0: Vec3, v1: Vec3, v2: Vec3, intr: fn (Mask, Real, Real, Real) -> ()) -> () {
-    let e0 = vec3_sub(v1, v0);
-    let e1 = vec3_sub(v2, v0);
-    let pvec = vec3_cross(dir, e1);
-    let det = vec3_dot(e0, pvec);
-    if all(abs_real(det) < real(flt_eps)) {
-        return()
-    }
+fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, tri: Tri, intr: fn (Mask, Real, Real, Real) -> ()) -> () {
+    let v0 = tri.vertex(0);
+    let e1 = tri.edge(0);
+    let e2 = tri.edge(1);
+    let n = tri.normal();
 
-    let idet = real(1.0f) / det;
-    let tvec = vec3_sub(org, v0);
-    let u = vec3_dot(tvec, pvec) * idet;
-    let mut mask = u >= real(0.0f) & u <= real(1.0f);
+    let c = vec3_sub(v0, org);
+    let r = vec3_cross(dir, c);
+    let det = vec3_dot(n, dir);
+    let abs_det = abs_real(det);
+
+    let u = copysign_real(vec3_dot(r, e2), det);
+    let mut mask = u >= real(0.0f);
+
+    let v = copysign_real(vec3_dot(r, e1), det);
+    mask &= v >= real(0.0f);
+
+    let w = abs_det - u - v;
+    mask &= w >= real(0.0f);
+
     if any(mask) {
-        let qvec = vec3_cross(tvec, e0);
-        let v = vec3_dot(qvec, dir) * idet;
-        mask &= v >= real(0.0f) & u + v <= real(1.0f);
+        let t = copysign_real(vec3_dot(n, c), det);
+        mask &= (t >= abs_det * tmin) & (t <= abs_det * tmax);
         if any(mask) {
-            let t = vec3_dot(e1, qvec) * idet;
-            mask &= t >= tmin & t <= tmax;
-            if any(mask) {
-                intr(mask, t, u, v);
-            }
+            let inv_det = rcp_real(abs_det);
+            intr(mask, t * inv_det, u * inv_det, v * inv_det);
         }
     }
 }

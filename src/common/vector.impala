@@ -12,6 +12,14 @@ fn vec3(x: Real, y: Real, z: Real) -> Vec3 {
     }
 }
 
+fn vec3_add(a: Vec3, b: Vec3) -> Vec3 {
+    Vec3 {
+        x: a.x + b.x,
+        y: a.y + b.y,
+        z: a.z + b.z
+    }
+}
+
 fn vec3_sub(a: Vec3, b: Vec3) -> Vec3 {
     Vec3 {
         x: a.x - b.x,

@@ -15,11 +15,11 @@ fn any(m: Mask) -> bool { true }
 fn all(m: Mask) -> bool { false }
 
 fn abs_real(x: Real) -> Real { bitcast8_i32_f32(bitcast8_f32_i32(x) & intr(0x7FFFFFFF)) }
-fn safe_rcp(x: Real) -> Real {
+fn rcp_real(x: Real) -> Real {
     let sign = bitcast8_f32_i32(x) & intr(0x80000000);
     select8_f32(abs_real(x) < real(flt_eps), bitcast8_i32_f32(sign | intr(bitcast_f32_i32(flt_max))), real(1.0f) / x)
 }
-
+fn copysign_real(x: Real, y: Real) -> Real { bitcast8_i32_f32(bitcast8_f32_i32(x) ^ (bitcast8_f32_i32(y) & intr(0x80000000))) }
 fn min_real(a: Real, b: Real) -> Real { select8_f32(a < b, a, b) }
 fn max_real(a: Real, b: Real) -> Real { select8_f32(a > b, a, b) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
@@ -33,27 +33,63 @@ struct Node {
     children: [i32 * 4]
 }
 
-fn iterate_triangles(nodes: &[Node], node_id: i32, tris: &[Vec4], body: fn (Intr, Vec3, Vec3, Vec3) -> ()) -> () {
+fn iterate_triangles(nodes: &[Node], node_id: i32, mut tris: &[Vec4], body: fn (Tri, Intr) -> ()) -> () {
     let mut loop_id = !node_id;
+
     while true {
-        let v0 = tris(loop_id + 0);
-        let v1 = tris(loop_id + 1);
-        let v2 = tris(loop_id + 2);
+        let v0x = &tris(loop_id + 0) as &[float];
+        let v0y = &tris(loop_id + 1) as &[float];
+        let v0z = &tris(loop_id + 2) as &[float];
 
-        body(intr(loop_id),
-             vec3(real(v0.x), real(v0.y), real(v0.z)),
-             vec3(real(v1.x), real(v1.y), real(v1.z)),
-             vec3(real(v2.x), real(v2.y), real(v2.z)));
+        let e1x = &tris(loop_id + 3) as &[float];
+        let e1y = &tris(loop_id + 4) as &[float];
+        let e1z = &tris(loop_id + 5) as &[float];
 
-        if bitcast_f32_i32(v2.w) == 0x80000000 {
+        let e2x = &tris(loop_id + 6) as &[float];
+        let e2y = &tris(loop_id + 7) as &[float];
+        let e2z = &tris(loop_id + 8) as &[float];
+
+        let nx = &tris(loop_id + 9) as &[float];
+        let ny = &tris(loop_id + 10) as &[float];
+        let nz = &tris(loop_id + 11) as &[float];
+
+        let zero = vec3(real(-0.0f), real(-0.0f), real(-0.0f));
+        for i in range(0, 4) @{
+            let v0 = vec3(real(v0x(i)), real(v0y(i)), real(v0z(i)));
+            let e1 = vec3(real(e1x(i)), real(e1y(i)), real(e1z(i)));
+            let e2 = vec3(real(e2x(i)), real(e2y(i)), real(e2z(i)));
+            let n = vec3(real(nx(i)), real(ny(i)), real(nz(i)));
+
+            let tri = Tri {
+                vertex: |i| {
+                    if (i == 0) { v0 }
+                    else if (i == 1) { vec3_sub(v0, e1) }
+                    else if (i == 2) { vec3_add(v0, e2) }
+                    else { zero }
+                },
+                edge: |i| {
+                    if (i == 0) { e1 }
+                    else if (i == 1) { e2 }
+                    else { zero }
+                },
+                normal: || { n }
+            };
+
+            @body(tri, intr(loop_id));
+        }
+
+        let next = &tris(loop_id + 12) as &[float];
+
+        // Stop the loop when we reach the sentinel
+        if bitcast_f32_i32(next(0)) == 0x80000000 {
             break()
         }
 
-        loop_id += 3;
+        loop_id += 12;
     }
 }
 
-fn iterate_children(nodes: &[Node], node_id: i32, t: Real, stack: Stack, body: fn(Vec3, Vec3, fn (Real, Real) -> ()) -> ()) -> () {
+fn iterate_children(nodes: &[Node], node_id: i32, t: Real, stack: Stack, body: fn(Box, fn (Real, Real) -> ()) -> ()) -> () {
     fn greater_eq(a: Real, b: Real) -> i32 { movmskps256(cmpps256(b, a, 2i8)) }
     fn greater(a: Real, b: Real) -> i32 { movmskps256(cmpps256(b, a, 1i8)) }
 
@@ -64,10 +100,13 @@ fn iterate_children(nodes: &[Node], node_id: i32, t: Real, stack: Stack, body: f
         let node = nodes(node_id);
         for i in range(0, 4) {
             if node.children(i) == 0 { break() }
-            let min = vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i)));
-            let max = vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i)));
 
-            body(min, max, |t0, t1| {
+            let box = Box {
+                min: || { vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i))) },
+                max: || { vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i))) }
+            };
+
+            @body(box, |t0, t1| {
                 let t = select_real(t1 >= t0, t0, real(flt_max));
                 if greater_eq(t1, t0) != 0 {
                     if greater(stack.tmin(), t) != 0 {
