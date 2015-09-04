@@ -24,6 +24,7 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
 
         // Initialize traversal variables
         let idir = vec3(rcp_real(dir.x), rcp_real(dir.y), rcp_real(dir.z));
+        let oidir = vec3_mul(idir, org);
         let mut t = tmax;
         let mut u = real(0.0f);
         let mut v = real(0.0f);
@@ -32,15 +33,15 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
         stack.push_top(0, tmin);
 
         // Traversal loop
-        while !stack.is_empty() @{
+        while !stack.is_empty() {
             // Intersect children and update stack
-            for box, hit in iterate_children(nodes, stack.top(), t, stack) {
-                intersect_ray_box(org, idir, tmin, t, box, hit);
+            for box, hit in iterate_children(nodes, t, stack) {
+                intersect_ray_box(oidir, idir, tmin, t, box, hit);
             }
 
             // Intersect leaves
             while is_leaf(stack.top()) {
-                for tri, id in iterate_triangles(nodes, stack.top(), tris) {
+                for tri, id in iterate_triangles(nodes, t, stack, tris) {
                     intersect_ray_tri(org, dir, tmin, t, tri, |mask, t0, u0, v0| {
                         t = select_real(mask, t0, t);
                         u = select_real(mask, u0, u);

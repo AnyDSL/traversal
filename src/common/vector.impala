@@ -28,6 +28,14 @@ fn vec3_sub(a: Vec3, b: Vec3) -> Vec3 {
     }
 }
 
+fn vec3_mul(a: Vec3, b: Vec3) -> Vec3 {
+    Vec3 {
+        x: a.x * b.x,
+        y: a.y * b.y,
+        z: a.z * b.z
+    }
+}
+
 fn vec3_cross(a: Vec3, b: Vec3) -> Vec3 {
     Vec3 {
         x: a.y * b.z - a.z * b.y,
