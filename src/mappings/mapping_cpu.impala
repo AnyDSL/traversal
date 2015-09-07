@@ -54,16 +54,10 @@ fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], b
             let n  = vec3(real(tri_data(36 + i)), real(tri_data(40 + i)), real(tri_data(44 + i)));
 
             let tri = Tri {
-                vertex: |i| {
-                    if (i == 0) { v0 }
-                    else if (i == 1) { vec3_sub(v0, e1) }
-                    else /*if (i == 2)*/ { vec3_add(v0, e2) }
-                },
-                edge: |i| {
-                    if (i == 0) { e1 }
-                    else /*if (i == 1)*/ { e2 }
-                },
-                normal: || { n }
+                v0: || { v0 },
+                e1: || { e1 },
+                e2: || { e2 },
+                n:  || { n }
             };
 
             body(tri, intr(tri_id));

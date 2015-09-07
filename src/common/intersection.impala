@@ -1,7 +1,8 @@
 struct Tri {
-    vertex: fn (i32) -> Vec3,
-    edge: fn (i32) -> Vec3,
-    normal: fn () -> Vec3
+    v0: fn () -> Vec3,
+    e1: fn () -> Vec3,
+    e2: fn () -> Vec3,
+    n:  fn () -> Vec3
 }
 
 struct Box {
@@ -37,10 +38,10 @@ fn intersect_ray_box(oidir: Vec3, idir: Vec3, tmin: Real, tmax: Real, box: Box, 
 
 // Moeller-Trumbore triangle intersection algorithm
 fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, tri: Tri, intr: fn (Mask, Real, Real, Real) -> ()) -> () {
-    let v0 = tri.vertex(0);
-    let e1 = tri.edge(0);
-    let e2 = tri.edge(1);
-    let n = tri.normal();
+    let v0 = tri.v0();
+    let e1 = tri.e1();
+    let e2 = tri.e2();
+    let n = tri.n();
 
     let c = vec3_sub(v0, org);
     let r = vec3_cross(dir, c);
