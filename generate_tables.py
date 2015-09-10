@@ -110,7 +110,6 @@ def get_bench_nbr(bench_order, name):
 
 def get_mapping(name):
     return name
-    
 
 def ouput_table(f):
 
@@ -162,8 +161,6 @@ def ouput_table(f):
     f.write("\\\\\n")
     
     f.write("\\hline\n")
-
-    
 
     for s, rays in config['scenes'].items():
         sn = remove_suffix(s, ".bvh")
@@ -227,11 +224,16 @@ def ouput_table(f):
             for bn in bench_order:
                 f.write(" & " + row[bn])
                 if bn in config['mappings']:
-                    mapped = config['mappings'][bn]
-                    res_a = row[bn]
-                    res_b = row[mapped]
-                    percentage = ((float(res_a) / float(res_b)) - 1) * 100
-                    f.write(" {\\tiny (%.2f\\%%)  }" % percentage)
+                    comparison = []
+                    for cmp_to in config['mappings'][bn]:
+                        res_a = row[bn]
+                        res_b = row[cmp_to]
+                        percentage = ((float(res_a) / float(res_b)) - 1) * 100
+                        sign = ""
+                        if percentage > 0.0:
+                            sign = "+"
+                        comparison.append("%s%.2f\\%%" % (sign, percentage))
+                    f.write(" {\\small(" + ", ".join(comparison) + ") }")
 
             f.write("\\\\ \n")
 
