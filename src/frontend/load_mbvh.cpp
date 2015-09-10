@@ -1,6 +1,9 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <cfloat>
+#include <cstring>
+#include <cassert>
 #include "thorin_runtime.h"
 #include "traversal.h"
 #include "bvh_format.h"
@@ -16,27 +19,49 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
     // Read nodes
     std::vector<mbvh::Node> nodes(h.node_count);
     in.read((char*)nodes.data(), sizeof(mbvh::Node) * h.node_count);
+    assert(in.gcount() == sizeof(mbvh::Node) * h.node_count);
 
     // Read vertices
-    std::vector<float> vertices(3 * h.vert_count);
-    in.read((char*)vertices.data(), sizeof(float) * 3 * h.vert_count);
+    std::vector<float> vertices(4 * h.vert_count);
+    in.read((char*)vertices.data(), sizeof(float) * 4 * h.vert_count);
+    assert(in.gcount() == sizeof(float) * 4 * h.vert_count);
     
     std::vector<Node> node_stack;
     std::vector<Vec4> tri_stack;
-    union { unsigned int i; float f; } sentinel = { 0x80000000 };
 
     auto leaf_node = [&] (const mbvh::Node& node, int c) {
         int node_id = ~(tri_stack.size());
+
         for (int i = 0; i < node.prim_count[c]; i++) {
-            int i0 = node.children[c] + i * 3, i1 = i0 + 1, i2 = i0 + 2;
-            Vec4 v0 = { vertices[i0 * 3 + 0], vertices[i0 * 3 + 1], vertices[i0 * 3 + 2], 0.0f };
-            Vec4 v1 = { vertices[i1 * 3 + 0], vertices[i1 * 3 + 1], vertices[i1 * 3 + 2], 0.0f };
-            Vec4 v2 = { vertices[i2 * 3 + 0], vertices[i2 * 3 + 1], vertices[i2 * 3 + 2], 0.0f };
-            tri_stack.push_back(v0);
-            tri_stack.push_back(v1);
-            tri_stack.push_back(v2);
+            union{
+                struct {
+                    Vec4 v0_x, v0_y, v0_z;
+                    Vec4 e1_x, e1_y, e1_z;
+                    Vec4 e2_x, e2_y, e2_z;
+                    Vec4 n_x, n_y, n_z;
+                } tri_data;
+                float raw_data[4 * 4 * 3];
+            } tri;
+
+            memcpy(tri.raw_data, vertices.data() + node.children[c] * 4 + i * 4 * 4 * 3, sizeof(float) * 4 * 4 * 3);
+
+            tri_stack.push_back(tri.tri_data.v0_x);
+            tri_stack.push_back(tri.tri_data.v0_y);
+            tri_stack.push_back(tri.tri_data.v0_z);
+            tri_stack.push_back(tri.tri_data.e1_x);
+            tri_stack.push_back(tri.tri_data.e1_y);
+            tri_stack.push_back(tri.tri_data.e1_z);
+            tri_stack.push_back(tri.tri_data.e2_x);
+            tri_stack.push_back(tri.tri_data.e2_y);
+            tri_stack.push_back(tri.tri_data.e2_z);
+            tri_stack.push_back(tri.tri_data.n_x);
+            tri_stack.push_back(tri.tri_data.n_y);
+            tri_stack.push_back(tri.tri_data.n_z);
         }
-        tri_stack.back().w = sentinel.f;
+
+        // Insert sentinel
+        Vec4 sentinel = { -0.0f, -0.0f, -0.0f, -0.0f };
+        tri_stack.push_back(sentinel);
         return node_id;
     };
 
