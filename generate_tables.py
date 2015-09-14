@@ -112,9 +112,7 @@ def get_mapping(name):
     return name
 
 def ouput_table(f):
-
-    #Place holders
-    f.write("%Mappings\n");
+    f.write("% Mappings\n");
     for bench in config['benches']:
         bn = os.path.basename(bench)
         f.write("\\newcommand{\\bench"+ bn + "}{" + bn + "}\n");
@@ -123,86 +121,69 @@ def ouput_table(f):
         sn = remove_suffix(s, ".bvh")
         f.write("\\newcommand{\\scene"+ sn + "}{" + sn.title() + "}\n");
 
-    #f.write("%Additional cell height")
-    #f.write("\\setlength{\\extrarowheight}{1cm}")
-    f.write("\\renewcommand{\\arraystretch}{1.5}")
-    #Table Header
-    f.write("\\begin{table}\n")
+    f.write("\n\ctable[\n%% Options\nstar,\ndoinside=\small,\ncaption={In %s}\n]\n" % (print_type))
+    f.write("% Layout\n{")
 
     bc = len(config['benches'])
-    bc+=2   #Add first columns
-    f.write("\\begin{tabular}{")
-    f.write("|c|l!{\\vrule width 1.2pt}")
-
-    for i in range(1,bc):
-        f.write("r|")
-    f.write("} \n") 
-    f.write("\\hline\n")
-
-    #Table 'Headline'
-    f.write(" & Ray Type"),
-    #f.write(" & Image"),
+    bc += 2   # Add first columns
+    f.write("ll")
+    for i in range(1, bc):
+        f.write("c")
+    f.write("}\n")
 
     bench_order=[]
-    #Table
     for bench in config['benches']:
         bn = os.path.basename(bench)
         bench_order.append(bn)
-
-
-    for bn in bench_order:
-        f.write(" & ");        
-        if bn in config['mappings']:
-            f.write(" \\begin{tabular}{c} ");
-        f.write(" \\bench" + bn + "{}"),
-        if bn in config['mappings']:
-            f.write("\\\\");
-            f.write(" {\\tiny (su cmp to \\bench%s{}) } \\end{tabular}" % config['mappings'][bn])
-    f.write("\\\\\n")
     
-    f.write("\\hline\n")
+    f.write("{\n% Footnotes\n")
+    footnotes={}
+    for i, bn in enumerate(filter(lambda x: x in config['mappings'], bench_order)):
+        letter = chr(ord('a') + i)
+        footnotes[bn] = letter
+        f.write("\\tnote[%c]{Speed-up w.r.t " % (letter))
+        comparison = []
+        for c in config['mappings'][bn]:
+            comparison += ["\\bench%s{}" % c]
+        f.write(", ".join(comparison) + "}\n")
+    f.write("}\n")
 
+    f.write("{\n% Table body\n\FL\n")
+
+    f.write("& Ray Type")
+    for bn in bench_order:
+        f.write(" & \\bench" + bn + "{}")
+        if bn in footnotes:
+            f.write(" \\tmark[%c]" % footnotes[bn])
+    f.write("\\ML\n")
+    
     for s, rays in config['scenes'].items():
         sn = remove_suffix(s, ".bvh")
 
         lr = len(rays)
+        cr = 0
+
         f.write("\\multirow{%d}{*}" % lr)
-        
-#Add png 
-        tex_graphics=""
-#        png_path = config['obj_dir']+"/"+sn+".png"
-#        if os.path.isfile(png_path):
-#            tex_graphics = "\\includegraphics[width=0.9\\linewidth]{" + png_path + "}"
-
-
-        f.write("{\pbox[t]{1.5cm} { \\scene" + sn +"{} \\\\ " + tex_graphics + " } }")
-
-        lr = len(rays)
-        cr=0    
+        f.write("{\pbox[t]{1.5cm} { \\scene" + sn +"{} } }")
 
         for r in rays:
             rn = remove_suffix(r, ".rays")        
-                    
-            
-            #Ray Type
+
+            # Ray Type
             ray_type = config['rays'][r]['generate']
             f.write("& " + ray_type.title())
-            #f.write("& " + rn)
 
             width = config['rays'][r]['width']
             height = config['rays'][r]['width']
 
             nbr_of_rays = width * height
 
-            row={}
-
+            row = {}
             for bench in config['benches']:
                 bn = os.path.basename(bench)
                 resdir = config['res_dir'] + "/" + bn
                 name = sn + "-" + rn
-                
                 outpath = resdir + "/" + name + ".out"
-          
 
                 if os.path.exists(outpath):
                     for tt in parse_file(outpath):
@@ -220,7 +201,6 @@ def ouput_table(f):
                 else:
                     row[bn] = "n/a"
 
-
             for bn in bench_order:
                 f.write(" & " + row[bn])
                 if bn in config['mappings']:
@@ -233,24 +213,17 @@ def ouput_table(f):
                         if percentage > 0.0:
                             sign = "+"
                         comparison.append("%s%.2f\\%%" % (sign, percentage))
-                    f.write(" {\\small(" + ", ".join(comparison) + ") }")
+                    f.write(" {(" + ", ".join(comparison) + ") }")
 
-            f.write("\\\\ \n")
+            # Last line must be a hline
+            cr += 1
+            if cr < lr :
+                f.write("\\NN\n")
+            else:
+                f.write("\\ML\n")
 
-            #Last line must be a hline
-            cr+=1
-            if cr<lr :
-                f.write("\cline{%d-%d}\n" % (2, bc))
-            else: 
-                f.write("\hline\n")
+    f.write("\\LL\n}\n")
 
-    f.write("\\end{tabular}\n")
-
-    f.write("\\caption{In %s}" % (print_type))
-
-    f.write("\\end{table}\n")
-
-            
 def main():
    
     # Read configuration or generate config file if it doesn't exist
@@ -276,7 +249,7 @@ def main():
 
     f.write("\\usepackage{graphicx}\n")
     f.write("\\usepackage[margin=2cm]{geometry}\n\n")
-
+    f.write("\\usepackage{ctable}\n")
 
 
     f.write("\\begin{document}\n")
