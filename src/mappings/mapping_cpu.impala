@@ -60,7 +60,7 @@ fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], b
                 n:  || { n }
             };
 
-            body(tri, intr(tri_id));
+            body(tri, intr(tri_id * 4 + i));
         }
 
         if bitcast_f32_i32(tri_data(48)) == 0x80000000 {

@@ -18,11 +18,11 @@ set(COMMON_SRCS
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(MAPPING_SRCS mappings/mapping_cpu.impala)
     set(LOADER_SRC frontend/load_mbvh.cpp)
-    set(FRONTEND_DEFS "get_time=thorin_get_micro_time")
+    set(TRAVERSAL_DEFS "get_time=thorin_get_micro_time" CPU)
 elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
     set(MAPPING_SRCS mappings/mapping_gpu.impala)
     set(LOADER_SRC frontend/load_bvh.cpp)
-    set(FRONTEND_DEFS "get_time=thorin_get_kernel_time")
+    set(TRAVERSAL_DEFS "get_time=thorin_get_kernel_time" GPU)
 else()
     message(FATAL_ERROR "Backend not supported")
 endif()
@@ -47,7 +47,7 @@ set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
 # Traversal library
 add_library(traversal ${IMPALA_OBJS})
 target_link_libraries(traversal ${IMPALA_LIBS})
-target_compile_definitions(traversal PUBLIC ${FRONTEND_DEFS})
+target_compile_definitions(traversal PUBLIC ${TRAVERSAL_DEFS})
 
 # Traversal frontend
 add_executable(frontend ${FRONTEND_SRCS})

@@ -6,6 +6,7 @@
 #include <cassert>
 
 #include <SDL/SDL.h>
+#include <omp.h>
 #include <thorin_runtime.h>
 
 #include "../frontend/options.h"
@@ -54,7 +55,18 @@ struct RayBuffer {
     }
 
     void traverse(Node* nodes, Vec4* tris) {
+#ifdef CPU
+#define CHUNK 256
+        #pragma omp parallel for
+        for (int i = 0; i < size; i += CHUNK)
+        {
+            const int count = (i + CHUNK <= size) ? CHUNK : size - i;
+            traverse_accel(nodes, rays + i, tris, hits + i, count);
+        }
+#undef CHUNK
+#else
         traverse_accel(nodes, rays, tris, hits, size);
+#endif
     }
 
     Ray* rays;
@@ -125,14 +137,20 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
                                    from_vec4(primary.rays[ray_id].org);
 
                 // Compute the face normal, tangent, bitangent
+#ifdef CPU
+                const int tri = tri_id & 0x03;
+                const float* tri4 = (float*)&tris[tri_id >> 2];
+                const float3 v1(tri4[tri +  0], tri4[tri +  4], tri4[tri +  8]);
+                const float3 e1(tri4[tri + 12], tri4[tri + 16], tri4[tri + 20]);
+                float3 normal = normalize(float3(tri4[tri + 36], tri4[tri + 40], tri4[tri + 44]));
+#else
                 const float3 v1 = from_vec4(tris[tri_id + 0]);
                 const float3 v2 = from_vec4(tris[tri_id + 1]);
                 const float3 v3 = from_vec4(tris[tri_id + 2]);
-
                 const float3 e1 = v2 - v1;
                 const float3 e2 = v3 - v1;
-                
                 float3 normal = normalize(cross(e1, e2));
+#endif
                 // Flip it if if doesn't face the viewer
                 const float d = dot(cam.eye, normal) - dot(normal, v1);
                 if (d < 0) normal = normal * (-1.0f);
