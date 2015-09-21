@@ -194,7 +194,7 @@ def ouput_table(f):
                 
                     if print_type=="megarays":
                         megarays = (nbr_of_rays * 1000 / ms) / 1000000
-                        row[bn] = "%.4f" % (megarays)
+                        row[bn] = "%.2f" % (megarays)
                     else: 
                         row[bn] = "%.4f" % (ms)
 
