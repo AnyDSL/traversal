@@ -128,6 +128,7 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
 
         // Generate ambient occlusion rays
         int ao_rays = 0;
+        #pragma omp parallel for reduction(+:ao_rays)
         for (int j = 0; j < block_limit; j++) {
             const int ray_id = i + j;
             const int tri_id = primary.hits[ray_id].tri_id;
@@ -180,6 +181,7 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
             ao_buffer.traverse(nodes, tris);
 
             // Write the contribution to the image
+            #pragma omp parallel for
             for (int j = 0; j < block_limit; j++) {
                 float color = 0.0f;
 
