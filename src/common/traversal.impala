@@ -23,7 +23,7 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
         let stack = allocate_stack();
 
         // Initialize traversal variables
-        let idir = vec3(rcp_real(dir.x), rcp_real(dir.y), rcp_real(dir.z));
+        let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
         let oidir = vec3_mul(idir, org);
         let mut t = tmax;
         let mut u = real(0.0f);

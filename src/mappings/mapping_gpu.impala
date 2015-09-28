@@ -22,6 +22,7 @@ fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
 fn abs_real(r: Real) -> Real { fabsf(r) }
 fn rcp_real(r: Real) -> Real { 1.0f / r }
 fn prodsign_real(x: Real, y: Real) -> Real { bitcast_i32_f32(bitcast_f32_i32(x) ^ (bitcast_f32_i32(y) & intr(0x80000000))) }
+fn safe_rcp(x: Real) -> Real { if x == 0.0f { copysignf(flt_max, x) } else { rcp_real(x) } }
 
 fn min_real(a: Real, b: Real) -> Real { fminf(a, b) }
 fn max_real(a: Real, b: Real) -> Real { fmaxf(a, b) }
