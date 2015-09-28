@@ -57,7 +57,7 @@ struct RayBuffer {
     void traverse(Node* nodes, Vec4* tris) {
 #ifdef CPU
 #define CHUNK 256
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < size; i += CHUNK)
         {
             const int count = (i + CHUNK <= size) ? CHUNK : size - i;
@@ -207,7 +207,7 @@ bool handle_events(View& view, int& accum) {
             case SDL_QUIT:
                 return true;
             case SDL_MOUSEMOTION:
-                {
+                if (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
                     view.right = cross(view.forward, view.up);
                     view.forward = rotate(view.forward, view.right, -event.motion.yrel * view.rspeed);
                     view.forward = rotate(view.forward, view.up,    -event.motion.xrel * view.rspeed);
@@ -314,8 +314,6 @@ int main(int argc, char** argv) {
     }
 
     SDL_WM_SetCaption("Viewer", nullptr);
-    SDL_WM_GrabInput(SDL_GRAB_ON);
-    SDL_ShowCursor(SDL_DISABLE);
     SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 
     SDL_Surface* screen = SDL_SetVideoMode(cfg.width, cfg.height, 32, SDL_DOUBLEBUF);
@@ -330,14 +328,29 @@ int main(int argc, char** argv) {
     flush_events();
 
     bool done = false;
-    int accum = 0;
+    int accum = 0, frames = 0;
+    long last = SDL_GetTicks();
     while (!done) {
         if (accum == 0) {
             // Reset image when the camera moves
             memset(image.data(), 0, sizeof(float) * image.size());
         }
 
+        if (frames == 5) {
+            auto to_string_p = [] (float f) {
+                int ip = f;
+                return std::to_string(ip) + "." + std::to_string((int)((f - ip) * 100));
+            };
+            float fps = 5 * 1000.0f / (SDL_GetTicks() - last);
+            float mrays = cfg.width * cfg.height * fps * (cfg.samples + 1) / 1e6f;
+            std::string str = "Viewer [" + to_string_p(fps) + " FPS, " + to_string_p(mrays) + " Mray/s]";
+            SDL_WM_SetCaption(str.c_str(), nullptr);
+            last = SDL_GetTicks();
+            frames = 0;
+        }
+
         render_image(cam, cfg, image.data(), nodes, tris, primary, ao_buffer);
+        frames++;
         accum++;
 
         // Copy image to screen
@@ -360,7 +373,6 @@ int main(int argc, char** argv) {
         cam = gen_camera(view.eye, view.eye + view.forward * view.dist, view.up, cfg.fov, (float)cfg.width / (float)cfg.height);
     }
 
-    SDL_WM_GrabInput(SDL_GRAB_OFF);
     SDL_Quit();
 
     return EXIT_SUCCESS;

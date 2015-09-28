@@ -23,6 +23,10 @@ fn rcp_real(x: Real) -> Real {
     let r = rcpps256(x);
     r * (real(2.0f) - x * r)
 }
+fn safe_rcp(x: Real) -> Real {
+    let sign_max = bitcast8_i32_f32(bitcast8_f32_i32(real(flt_max)) | (bitcast8_f32_i32(x) & intr(0x80000000)));
+    blendvps256(sign_max, rcp_real(x), not_eq(x, real(0.0f)))
+}
 fn prodsign_real(x: Real, y: Real) -> Real { bitcast8_i32_f32(bitcast8_f32_i32(x) ^ (bitcast8_f32_i32(y) & intr(0x80000000))) }
 
 // Use integer instructions for min/max
