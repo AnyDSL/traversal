@@ -8,6 +8,15 @@
 #include "traversal.h"
 #include "bvh_format.h"
 
+static inline float as_float(int i) {
+    union {
+        int i;
+        float f;
+    } u;
+    u.i = i;
+    return u.f;
+}
+
 bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
     if (!in || !check_header(in) || !locate_block(in, BlockType::MBVH))
@@ -45,6 +54,12 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
 
             memcpy(tri.raw_data, vertices.data() + node.children[c] * 4 + i * 4 * 4 * 3, sizeof(float) * 4 * 4 * 3);
 
+            Vec4 ids = {
+                as_float(tri_stack.size() * 4 + 0),
+                as_float(tri_stack.size() * 4 + 1),
+                as_float(tri_stack.size() * 4 + 2),
+                as_float(tri_stack.size() * 4 + 3)
+            };
             tri_stack.push_back(tri.tri_data.v0_x);
             tri_stack.push_back(tri.tri_data.v0_y);
             tri_stack.push_back(tri.tri_data.v0_z);
@@ -57,6 +72,7 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
             tri_stack.push_back(tri.tri_data.n_x);
             tri_stack.push_back(tri.tri_data.n_y);
             tri_stack.push_back(tri.tri_data.n_z);
+            tri_stack.push_back(ids);
         }
 
         // Insert sentinel
