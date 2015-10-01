@@ -68,7 +68,7 @@ fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], b
             n:  || { n }
         };
 
-        body(tri, loop_id);
+        body(tri, bitcast_f32_i32(sv1(3)));
 
         if bitcast_f32_i32(sv2(3)) == 0x80000000 {
             break()

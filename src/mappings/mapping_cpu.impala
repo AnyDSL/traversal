@@ -52,11 +52,15 @@ fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], b
         let tri_data = &tris(tri_id) as &[float];
 
         for i in @unroll(0, 4) {
+            let id = bitcast_f32_i32(tri_data(48 + i));
+            if id < 0 {
+                return()
+            }
+
             let v0 = vec3(real(tri_data( 0 + i)), real(tri_data( 4 + i)), real(tri_data( 8 + i)));
             let e1 = vec3(real(tri_data(12 + i)), real(tri_data(16 + i)), real(tri_data(20 + i)));
             let e2 = vec3(real(tri_data(24 + i)), real(tri_data(28 + i)), real(tri_data(32 + i)));
             let n  = vec3(real(tri_data(36 + i)), real(tri_data(40 + i)), real(tri_data(44 + i)));
-
             let tri = Tri {
                 v0: || { v0 },
                 e1: || { e1 },
@@ -64,14 +68,14 @@ fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], b
                 n:  || { n }
             };
 
-            body(tri, intr(tri_id * 4 + i));
+            body(tri, intr(id));
         }
 
-        if bitcast_f32_i32(tri_data(48)) == 0x80000000 {
+        if bitcast_f32_i32(tri_data(52)) == 0x80000000 {
             break()
         }
 
-        tri_id += 12;
+        tri_id += 13;
     }
 }
 
