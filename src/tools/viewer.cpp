@@ -6,7 +6,6 @@
 #include <cassert>
 
 #include <SDL/SDL.h>
-#include <omp.h>
 #include <thorin_runtime.h>
 
 #include "../frontend/options.h"
