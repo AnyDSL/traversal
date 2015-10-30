@@ -1,9 +1,6 @@
 # Auto generated interface
 src/frontend/traversal.h
 
-# CMake config file
-TraversalConfig.cmake
-
 # Compiled Object files
 *.slo
 *.lo

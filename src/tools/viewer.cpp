@@ -15,6 +15,13 @@
 #include "linear.h"
 #include "camera.h"
 
+// No copy is needed when the program runs on the CPU
+#define HOST 0
+#if TRAVERSAL_PLATFORM == 0
+#define CPU
+#endif
+#undef HOST
+
 struct Config {
     int width;
     int height;
@@ -35,43 +42,49 @@ struct View {
     float tspeed;
 };
 
-struct RayBuffer {
-    RayBuffer(int count = 0)
-        : size(0), rays(nullptr), hits(nullptr) {
-        allocate(count);
-    }
+class RayBuffer {
+public:
+    RayBuffer(int count)
+        : host_rays(count)
+        , host_hits(count)
+#ifndef CPU
+        , dev_rays(count)
+        , dev_hits(count)
+#endif
+    {}
 
-    ~RayBuffer() {
-        if (rays) thorin_free(rays);
-        if (hits) thorin_free(hits);
-    }
-
-    void allocate(int count) {
-        if (size != count) {
-            rays = thorin_new<Ray>(count);
-            hits = thorin_new<Hit>(count);
-            size = count;
-        }
-    }
-
-    void traverse(Node* nodes, Vec4* tris) {
+    void traverse(thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
 #ifdef CPU
 #define CHUNK 256
         #pragma omp parallel for schedule(dynamic)
-        for (int i = 0; i < size; i += CHUNK)
+        for (int i = 0; i < size(); i += CHUNK)
         {
-            const int count = (i + CHUNK <= size) ? CHUNK : size - i;
-            traverse_accel(nodes, rays + i, tris, hits + i, count);
+            const int count = (i + CHUNK <= size()) ? CHUNK : size() - i;
+            traverse_accel(nodes.data(), rays() + i, tris.data(), hits() + i, count);
         }
 #undef CHUNK
 #else
-        traverse_accel(nodes, rays, tris, hits, size);
+        thorin::copy(host_rays, dev_rays);
+        thorin::copy(host_hits, dev_hits);
+        traverse_accel(nodes.data(), dev_rays.data(), tris.data(), dev_hits.data(), size());
+        thorin::copy(dev_hits, dev_hits);
 #endif
     }
 
-    Ray* rays;
-    Hit* hits;
-    int size;
+    Ray* rays() { return host_rays.data(); }
+    const Ray* rays() const { return host_rays.data(); }
+    Hit* hits() { return host_hits.data(); }
+    const Hit* hits() const { return host_hits.data(); }
+
+    int size() const { return host_rays.size(); }
+
+private:
+    thorin::Array<Ray> host_rays;
+    thorin::Array<Hit> host_hits;
+#ifndef CPU
+    thorin::Array<Ray> dev_rays;
+    thorin::Array<Hit> dev_hits;
+#endif
 };
 
 inline Vec4 make_vec4(float x, float y, float z, float w = 1.f) {
@@ -99,7 +112,7 @@ float3 cosine_weighted_sample_hemisphere(float u1, float u2)
     return float3(x, y, sqrt(std::max(0.0f, 1 - u1)));
 }
 
-void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes, Vec4* tris, RayBuffer& primary, RayBuffer& ao_buffer) {
+void render_image(const Camera& cam, const Config& cfg, float* img, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris, RayBuffer& primary, RayBuffer& ao_buffer) {
     const int img_size = cfg.width * cfg.height;
 
     std::random_device rd;
@@ -112,8 +125,8 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
             const float kx = 2 * x / (float)cfg.width - 1;
             const float ky = 1 - 2 * y / (float)cfg.height;
             const float3 dir = cam.dir + cam.right * kx + cam.up * ky;
-            primary.rays[y * cfg.width + x].org = make_vec4(cam.eye, 0.0f);
-            primary.rays[y * cfg.width + x].dir = make_vec4(dir, cfg.clip);
+            primary.rays()[y * cfg.width + x].org = make_vec4(cam.eye, 0.0f);
+            primary.rays()[y * cfg.width + x].dir = make_vec4(dir, cfg.clip);
         }
     }
 
@@ -121,7 +134,7 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
     primary.traverse(nodes, tris);
 
     // Proceed by groups of block_size pixels
-    int block_size = std::min(img_size, ao_buffer.size / cfg.samples);
+    int block_size = std::min(img_size, ao_buffer.size() / cfg.samples);
 
     for (int i = 0; i < img_size; i += block_size) {
         const int block_limit = (i + block_size > img_size) ? img_size - i : block_size;
@@ -131,27 +144,20 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
         #pragma omp parallel for reduction(+:ao_rays)
         for (int j = 0; j < block_limit; j++) {
             const int ray_id = i + j;
-            const int tri_id = primary.hits[ray_id].tri_id;
+            const int tri_id = primary.hits()[ray_id].tri_id;
             if (tri_id >= 0) {
-                const float t = primary.hits[ray_id].tmax;
-                const float3 org = from_vec4(primary.rays[ray_id].dir) * t +
-                                   from_vec4(primary.rays[ray_id].org);
+                const float t = primary.hits()[ray_id].tmax;
+                const float3 org = from_vec4(primary.rays()[ray_id].dir) * t +
+                                   from_vec4(primary.rays()[ray_id].org);
 
                 // Compute the face normal, tangent, bitangent
-#ifdef CPU
-                const int tri = tri_id & 0x03;
-                const float* tri4 = (float*)&tris[tri_id >> 2];
-                const float3 v1(tri4[tri +  0], tri4[tri +  4], tri4[tri +  8]);
-                const float3 e1(tri4[tri + 12], tri4[tri + 16], tri4[tri + 20]);
-                float3 normal = normalize(float3(tri4[tri + 36], tri4[tri + 40], tri4[tri + 44]));
-#else
-                const float3 v1 = from_vec4(tris[tri_id + 0]);
-                const float3 v2 = from_vec4(tris[tri_id + 1]);
-                const float3 v3 = from_vec4(tris[tri_id + 2]);
+                const float3 v1 /*= ...*/;
+                const float3 v2 /*= ...*/;
+                const float3 v3 /*= ...*/;
                 const float3 e1 = v2 - v1;
                 const float3 e2 = v3 - v1;
                 float3 normal = normalize(cross(e1, e2));
-#endif
+
                 // Flip it if if doesn't face the viewer
                 const float d = dot(cam.eye, normal) - dot(normal, v1);
                 if (d < 0) normal = normal * (-1.0f);
@@ -166,13 +172,13 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
                     const float3 s = cosine_weighted_sample_hemisphere(u1, u2);
                     const float3 dir = normalize(s.x * tangent + s.y * bitangent + s.z * normal);
 
-                    ao_buffer.rays[j * cfg.samples + k].org = make_vec4(org, cfg.ao_offset);
-                    ao_buffer.rays[j * cfg.samples + k].dir = make_vec4(dir, cfg.ao_tmax);
+                    ao_buffer.rays()[j * cfg.samples + k].org = make_vec4(org, cfg.ao_offset);
+                    ao_buffer.rays()[j * cfg.samples + k].dir = make_vec4(dir, cfg.ao_tmax);
                 }
                 ao_rays++;
             } else {
                 // Do not generate garbage for rays that go out of the scene
-                memset(&ao_buffer.rays[j * cfg.samples], 0, sizeof(Ray) * cfg.samples);
+                memset(ao_buffer.rays() + j * cfg.samples, 0, sizeof(Ray) * cfg.samples);
             }
         }
 
@@ -185,10 +191,10 @@ void render_image(const Camera& cam, const Config& cfg, float* img, Node* nodes,
             for (int j = 0; j < block_limit; j++) {
                 float color = 0.0f;
 
-                if(primary.hits[i + j].tri_id >= 0) {
+                if(primary.hits()[i + j].tri_id >= 0) {
                     int count = 0;
                     for(int k = j * cfg.samples; k < (j + 1) * cfg.samples; k++) {
-                        if (ao_buffer.hits[k].tri_id >= 0)
+                        if (ao_buffer.hits()[k].tri_id >= 0)
                             count++;
                     }
                     color = 1.f - (count / (float)cfg.samples);
@@ -285,10 +291,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    thorin_init();
-
-    Node* nodes;
-    Vec4* tris;
+    thorin::Array<Node> nodes;
+    thorin::Array<Vec4> tris;
     if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;

@@ -4,7 +4,7 @@
 #include <cfloat>
 #include <cstring>
 #include <cassert>
-#include "thorin_runtime.h"
+#include <thorin_runtime.hpp>
 #include "traversal.h"
 #include "bvh_format.h"
 
@@ -17,7 +17,7 @@ static inline float as_float(int i) {
     return u.f;
 }
 
-bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) {
+bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, thorin::Array<Vec4>& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
     if (!in || !check_header(in) || !locate_block(in, BlockType::MBVH))
         return false;
@@ -125,11 +125,11 @@ bool load_accel(const std::string& filename, Node*& nodes_ref, Vec4*& tris_ref) 
         node_stack.push_back(dst_node);
     }
 
-    nodes_ref = thorin_new<Node>(node_stack.size());
-    std::copy(node_stack.begin(), node_stack.end(), nodes_ref);
+    nodes_ref = std::move(thorin::Array<Node>(node_stack.size()));
+    std::copy(node_stack.begin(), node_stack.end(), nodes_ref.begin());
 
-    tris_ref = thorin_new<Vec4>(tri_stack.size());
-    std::copy(tri_stack.begin(), tri_stack.end(), tris_ref);
+    tris_ref = std::move(thorin::Array<Vec4>(tri_stack.size()));
+    std::copy(tri_stack.begin(), tri_stack.end(), tris_ref.begin());
 
     return true;
 }

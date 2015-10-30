@@ -2,11 +2,10 @@
 #include <fstream>
 #include <chrono>
 #include <functional>
+#include <thorin_runtime.hpp>
 #include "options.h"
 #include "traversal.h"
 #include "loaders.h"
-#include "thorin_runtime.h"
-#include "thorin_utils.h"
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -39,47 +38,47 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    thorin_init();
-
-    Node* nodes;
-    Vec4* tris;
+    thorin::Array<Node> nodes;
+    thorin::Array<Vec4> tris;
     if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
     }
 
-    Ray* rays;
-    int ray_count;
-    if (!load_rays(rays_file, rays, ray_count, tmin, tmax)) {
+    thorin::Array<Ray> rays;
+    if (!load_rays(rays_file, rays, tmin, tmax)) {
         std::cerr << "Cannot load ray distribution file." << std::endl;
         return EXIT_FAILURE;
     }
 
+    int ray_count = rays.size();
+
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    Hit* hits = thorin_new<Hit>(ray_count);
-    auto reset_hits = [&] () {
-        for (int i = 0; i < ray_count; i++) {
-            hits[i].tri_id = -1;
-            hits[i].tmax = rays[i].dir.w;        
-        }
-    };
+    thorin::Array<Hit> host_hits(ray_count);
+    thorin::Array<Hit> hits(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), ray_count);
+    for (int i = 0; i < ray_count; i++) {
+        host_hits.data()[i].tri_id = -1;
+        host_hits.data()[i].tmax = tmax;
+    }
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
-        reset_hits();
-        traverse_accel(nodes, rays, tris, hits, ray_count);
+        thorin::copy(host_hits, hits);
+        traverse_accel(nodes.data(), rays.data(), tris.data(), hits.data(), ray_count);
     }
 
     // Compute traversal time
     std::vector<long long> iter_times(times);
     for (int i = 0; i < times; i++) {
-        reset_hits();
+        thorin::copy(host_hits, hits);
         long long t0 = get_time();
-        traverse_accel(nodes, rays, tris, hits, ray_count);
+        traverse_accel(nodes.data(), rays.data(), tris.data(), hits.data(), ray_count);
         long long t1 = get_time();
         iter_times[i] = t1 - t0;
     }
+
+    thorin::copy(hits, host_hits);
 
     std::sort(iter_times.begin(), iter_times.end());
 
@@ -92,7 +91,7 @@ int main(int argc, char** argv) {
     std::cout << "# Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
-        if (hits[i].tri_id >= 0) {
+        if (host_hits.data()[i].tri_id >= 0) {
             intr++;
         }
     }
@@ -100,7 +99,7 @@ int main(int argc, char** argv) {
 
     std::ofstream out(output, std::ofstream::binary);
     for (int i = 0; i < ray_count; i++) {
-        out.write((char*)&hits[i].tmax, sizeof(float));
+        out.write((char*)&host_hits.data()[i].tmax, sizeof(float));
     }
 
     return EXIT_SUCCESS;
