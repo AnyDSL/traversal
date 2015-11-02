@@ -2,6 +2,8 @@
 #include <fstream>
 #include <chrono>
 #include <functional>
+#include <numeric>
+
 #include "options.h"
 #include "traversal.h"
 #include "loaders.h"
