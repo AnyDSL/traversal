@@ -2,7 +2,9 @@
 #include <fstream>
 #include <chrono>
 #include <functional>
+#include <numeric>
 #include <thorin_runtime.hpp>
+
 #include "options.h"
 #include "traversal.h"
 #include "loaders.h"
