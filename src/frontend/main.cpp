@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
     thorin::Array<Hit> host_hits(ray_count);
     thorin::Array<Hit> hits(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), ray_count);
     for (int i = 0; i < ray_count; i++) {
-        host_hits.data()[i].tri_id = -1;
-        host_hits.data()[i].tmax = tmax;
+        host_hits[i].tri_id = -1;
+        host_hits[i].tmax = tmax;
     }
 
     // Warmup iterations
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     std::cout << "# Min: " << iter_times[0] / 1000.0 << " ms" << std::endl;
     int intr = 0;
     for (int i = 0; i < ray_count; i++) {
-        if (host_hits.data()[i].tri_id >= 0) {
+        if (host_hits[i].tri_id >= 0) {
             intr++;
         }
     }
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
 
     std::ofstream out(output, std::ofstream::binary);
     for (int i = 0; i < ray_count; i++) {
-        out.write((char*)&host_hits.data()[i].tmax, sizeof(float));
+        out.write((char*)&host_hits[i].tmax, sizeof(float));
     }
 
     return EXIT_SUCCESS;
