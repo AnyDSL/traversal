@@ -14,12 +14,15 @@
 #include "linear.h"
 #include "camera.h"
 
-// No copy is needed when the program runs on the CPU
-#define HOST 0
+#define HOST   0
+#define CUDA   1
+#define OPENCL 2
 #if TRAVERSAL_PLATFORM == 0
 #define CPU
 #endif
 #undef HOST
+#undef CUDA
+#undef OPENCL
 
 struct Config {
     int width;
@@ -47,8 +50,8 @@ public:
         : host_rays(count)
         , host_hits(count)
 #ifndef CPU
-        , dev_rays(count)
-        , dev_hits(count)
+        , dev_rays(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), count)
+        , dev_hits(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), count)
 #endif
     {}
 
@@ -58,15 +61,15 @@ public:
         #pragma omp parallel for schedule(dynamic)
         for (int i = 0; i < size(); i += CHUNK)
         {
+            // No copy is needed when the program runs on the CPU
             const int count = (i + CHUNK <= size()) ? CHUNK : size() - i;
             traverse_accel(nodes.data(), rays() + i, tris.data(), hits() + i, count);
         }
 #undef CHUNK
 #else
         thorin::copy(host_rays, dev_rays);
-        thorin::copy(host_hits, dev_hits);
         traverse_accel(nodes.data(), dev_rays.data(), tris.data(), dev_hits.data(), size());
-        thorin::copy(dev_hits, dev_hits);
+        thorin::copy(dev_hits, host_hits);
 #endif
     }
 

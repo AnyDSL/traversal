@@ -57,29 +57,28 @@ int main(int argc, char** argv) {
 
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    thorin::Array<Hit> host_hits(ray_count);
     thorin::Array<Hit> hits(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), ray_count);
-    for (int i = 0; i < ray_count; i++) {
-        host_hits[i].tri_id = -1;
-        host_hits[i].tmax = tmax;
-    }
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
-        thorin::copy(host_hits, hits);
         traverse_accel(nodes.data(), rays.data(), tris.data(), hits.data(), ray_count);
     }
 
     // Compute traversal time
     std::vector<long long> iter_times(times);
     for (int i = 0; i < times; i++) {
-        thorin::copy(host_hits, hits);
         long long t0 = get_time();
         traverse_accel(nodes.data(), rays.data(), tris.data(), hits.data(), ray_count);
         long long t1 = get_time();
         iter_times[i] = t1 - t0;
     }
 
+    // Read the result from the device
+    thorin::Array<Hit> host_hits(ray_count);
+    for (int i = 0; i < ray_count; i++) {
+        host_hits[i].tri_id = -1;
+        host_hits[i].tmax = tmax;
+    }
     thorin::copy(hits, host_hits);
 
     std::sort(iter_times.begin(), iter_times.end());

@@ -70,5 +70,6 @@ add_executable(gen_random  tools/gen_random.cpp  ${TOOLS_COMMON_SRCS})
 add_executable(gen_shadow  tools/gen_shadow.cpp  ${TOOLS_COMMON_SRCS})
 
 add_executable(viewer tools/viewer.cpp ${LOADER_SRC} ${TOOLS_COMMON_SRCS})
+target_compile_definitions(viewer PUBLIC ${TRAVERSAL_DEFS})
 target_link_libraries(viewer traversal ${SDL_LIBRARY})
 
