@@ -9,6 +9,7 @@ type HitFn = fn (Intr, Real, Real, Real) -> ();
 fn real(x: f32) -> Real { simd[x, x, x, x, x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x, x, x, x, x] }
 
+fn terminated(a: Intr) -> bool { movmskps256(bitcast8_i32_f32(a)) == 0 }
 fn any(m: Mask) -> bool { movmskps256(m) != 0 }
 fn all(m: Mask) -> bool { movmskps256(m) == 0xFF }
 fn and(a: Mask, b: Mask) -> Mask { bitcast8_i32_f32(bitcast8_f32_i32(a) & bitcast8_f32_i32(b)) }
@@ -127,4 +128,12 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, 
             }
         });
     }
+}
+
+extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, false)
+}
+
+extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, true)
 }

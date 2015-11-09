@@ -17,7 +17,19 @@ struct Hit {
     v: f32
 }
 
-extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hit], ray_count: i32) -> () {
+type RecordHitFn = fn (Intr, Real, Real, Real) -> ();
+type BoxHitFn = fn (Real, Real) -> ();
+
+type IterateRaysFn = fn (&[Ray], &[Hit], i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
+type IterateChildrenFn = fn (&[Node], Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
+type IterateTrianglesFn = fn (&[Node], Real, Stack, &[Vec4], fn (Tri, Intr) -> ()) -> ();
+
+fn traverse(iterate_rays: IterateRaysFn,
+            iterate_children: IterateChildrenFn,
+            iterate_triangles: IterateTrianglesFn,
+            nodes: &[Node], tris: &[Vec4],
+            rays: &[Ray], hits: &[Hit],
+            ray_count: i32, occlusion: bool) -> () {
     for org, dir, tmin, tmax, record_hit in iterate_rays(rays, hits, ray_count) {
         // Allocate a stack for the traversal
         let stack = allocate_stack();
@@ -34,6 +46,8 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
 
         // Traversal loop
         while !stack.is_empty() {
+            let terminate = break;
+
             // Intersect children and update stack
             for box, hit in iterate_children(nodes, t, stack) {
                 intersect_ray_box(oidir, idir, tmin, t, box, hit);
@@ -47,6 +61,10 @@ extern fn traverse_accel(nodes: &[Node], rays: &[Ray], tris: &[Vec4], hits: &[Hi
                         u = select_real(mask, u0, u);
                         v = select_real(mask, v0, v);
                         tri_id = select_intr(mask, id, tri_id);
+
+                        if occlusion && terminated(tri_id) {
+                            terminate()
+                        }
                     });
                 }
 

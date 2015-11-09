@@ -10,6 +10,7 @@ type HitFn = fn (Intr, Real, Real, Real) -> ();
 fn real(x: f32) -> Real { x }
 fn intr(x: i32) -> Intr { x }
 
+fn terminated(a: Intr) -> bool { a >= 0 }
 fn any(m: Mask) -> bool { m }
 fn all(m: Mask) -> bool { m }
 fn and(a: Mask, b: Mask) -> Mask { a & b }
@@ -139,4 +140,12 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Ve
             *(&hits(id) as &simd[f32 * 4]) = simd[bitcast_i32_f32(tri), t, u, v];
         });
     })
+}
+
+extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, false)
+}
+
+extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, true)
 }

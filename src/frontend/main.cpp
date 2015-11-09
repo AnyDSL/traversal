@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     std::string output;
     float tmin, tmax;
     int times, warmup;
-    bool help;
+    bool help, any;
 
     ArgParser parser(argc, argv);
     parser.add_option<bool>("help", "h", "Shows this message", help, false);
@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
     parser.add_option<std::string>("output", "o", "Sets the output file name", output, "output.fbuf", "output.fbuf");
     parser.add_option<float>("tmin", "tmin", "Sets the minimum t parameter along the rays", tmin, 0.0f, "t");
     parser.add_option<float>("tmax", "tmax", "Sets the maximum t parameter along the rays", tmax, 1e9f, "t");
+    parser.add_option<bool>("any", "any", "Stops at the first intersection", any, false);
 
     if (!parser.parse()) {
         return EXIT_FAILURE;
@@ -39,6 +40,8 @@ int main(int argc, char** argv) {
         parser.usage();
         return EXIT_SUCCESS;
     }
+
+    auto traversal = any ? occluded : intersect;
 
     thorin::Array<Node> nodes;
     thorin::Array<Vec4> tris;
@@ -61,14 +64,14 @@ int main(int argc, char** argv) {
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
-        traverse_accel(nodes.data(), rays.data(), tris.data(), hits.data(), ray_count);
+        traversal(nodes.data(), tris.data(), rays.data(), hits.data(), ray_count);
     }
 
     // Compute traversal time
     std::vector<long long> iter_times(times);
     for (int i = 0; i < times; i++) {
         long long t0 = get_time();
-        traverse_accel(nodes.data(), rays.data(), tris.data(), hits.data(), ray_count);
+        traversal(nodes.data(), tris.data(), rays.data(), hits.data(), ray_count);
         long long t1 = get_time();
         iter_times[i] = t1 - t0;
     }

@@ -55,7 +55,8 @@ public:
 #endif
     {}
 
-    void traverse(thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
+    template <typename F>
+    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
 #ifdef CPU
 #define CHUNK 256
         #pragma omp parallel for schedule(dynamic)
@@ -63,12 +64,12 @@ public:
         {
             // No copy is needed when the program runs on the CPU
             const int count = (i + CHUNK <= size()) ? CHUNK : size() - i;
-            traverse_accel(nodes.data(), rays() + i, tris.data(), hits() + i, count);
+            f(nodes.data(), tris.data(), rays() + i, hits() + i, count);
         }
 #undef CHUNK
 #else
         thorin::copy(host_rays, dev_rays);
-        traverse_accel(nodes.data(), dev_rays.data(), tris.data(), dev_hits.data(), size());
+        f(nodes.data(), tris.data(), dev_rays.data(), dev_hits.data(), size());
         thorin::copy(dev_hits, host_hits);
 #endif
     }
@@ -133,7 +134,7 @@ void render_image(const Camera& cam, const Config& cfg, float* img, thorin::Arra
     }
 
     // Intersect them
-    primary.traverse(nodes, tris);
+    primary.traverse(intersect, nodes, tris);
 
     // Proceed by groups of block_size pixels
     int block_size = std::min(img_size, ao_buffer.size() / cfg.samples);
@@ -186,7 +187,7 @@ void render_image(const Camera& cam, const Config& cfg, float* img, thorin::Arra
 
         if (ao_rays > 0) {
             // Get the intersection results
-            ao_buffer.traverse(nodes, tris);
+            ao_buffer.traverse(occluded, nodes, tris);
 
             // Write the contribution to the image
             #pragma omp parallel for
