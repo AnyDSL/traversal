@@ -75,10 +75,6 @@ int main(int argc, char** argv) {
 
     // Read the result from the device
     thorin::Array<Hit> host_hits(ray_count);
-    for (int i = 0; i < ray_count; i++) {
-        host_hits[i].tri_id = -1;
-        host_hits[i].tmax = tmax;
-    }
     thorin::copy(hits, host_hits);
 
     std::sort(iter_times.begin(), iter_times.end());
