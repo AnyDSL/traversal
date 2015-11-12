@@ -143,9 +143,9 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Ve
 }
 
 extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, false)
+    @traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, false)
 }
 
 extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, true)
+    @traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, true)
 }
