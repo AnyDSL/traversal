@@ -32,6 +32,7 @@ set(IMPALA_SRCS ${MAPPING_SRCS} ${COMMON_SRCS})
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
                    COMMAND impala -emit-c-interface ${IMPALA_SRCS}
+                          ${THORIN_RUNTIME_DIR}/runtime.impala
                           ${THORIN_RUNTIME_DIR}/platforms/intrinsics_${BACKEND}.impala
                           ${THORIN_RUNTIME_DIR}/platforms/intrinsics_thorin.impala
                           -o frontend/traversal
