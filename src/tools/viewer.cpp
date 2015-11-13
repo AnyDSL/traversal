@@ -115,7 +115,40 @@ float3 cosine_weighted_sample_hemisphere(float u1, float u2)
     return float3(x, y, sqrt(std::max(0.0f, 1 - u1)));
 }
 
-void render_image(const Camera& cam, const Config& cfg, float* img, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris, RayBuffer& primary, RayBuffer& ao_buffer) {
+void gen_local_coords(const std::vector<int>& indices, const std::vector<float>& vertices, std::vector<float>& local_coords) {
+    local_coords.resize(indices.size() * 3);
+    for (int i = 0, j = 0; i < indices.size(); i += 3, j++) {
+        const int i0 = indices[i + 0];
+        const int i1 = indices[i + 1];
+        const int i2 = indices[i + 2];
+        const float3 v0(vertices[i0 * 4 + 0], vertices[i0 * 4 + 1], vertices[i0 * 4 + 2]);
+        const float3 v1(vertices[i1 * 4 + 0], vertices[i1 * 4 + 1], vertices[i1 * 4 + 2]);
+        const float3 v2(vertices[i2 * 4 + 0], vertices[i2 * 4 + 1], vertices[i2 * 4 + 2]);
+        const float3 e1 = v1 - v0;
+        const float3 e2 = v2 - v0;
+        const float3 normal = normalize(cross(e1, e2));
+        const float3 tangent = normalize(e1);
+
+        local_coords[j * 9 + 0] = v0.x;
+        local_coords[j * 9 + 1] = v0.y;
+        local_coords[j * 9 + 2] = v0.z;
+        local_coords[j * 9 + 3] = normal.x;
+        local_coords[j * 9 + 4] = normal.y;
+        local_coords[j * 9 + 5] = normal.z;
+        local_coords[j * 9 + 6] = tangent.x;
+        local_coords[j * 9 + 7] = tangent.y;
+        local_coords[j * 9 + 8] = tangent.z;
+    }
+}
+
+void render_image(const Camera& cam,
+                  const Config& cfg,
+                  float* img,
+                  thorin::Array<Node>& nodes,
+                  thorin::Array<Vec4>& tris,
+                  const std::vector<float>& local_coords,
+                  RayBuffer& primary,
+                  RayBuffer& ao_buffer) {
     const int img_size = cfg.width * cfg.height;
 
     std::random_device rd;
@@ -153,19 +186,23 @@ void render_image(const Camera& cam, const Config& cfg, float* img, thorin::Arra
                 const float3 org = from_vec4(primary.rays()[ray_id].dir) * t +
                                    from_vec4(primary.rays()[ray_id].org);
 
-                // Compute the face normal, tangent, bitangent
-                const float3 v1 /*= ...*/;
-                const float3 v2 /*= ...*/;
-                const float3 v3 /*= ...*/;
-                const float3 e1 = v2 - v1;
-                const float3 e2 = v3 - v1;
-                float3 normal = normalize(cross(e1, e2));
+                // Get the face normal, tangent, bitangent
+                const int tri_id = primary.hits()[ray_id].tri_id;
+                const float3 v1(local_coords[tri_id * 9 + 0],
+                                local_coords[tri_id * 9 + 1],
+                                local_coords[tri_id * 9 + 2]);
+                float3 normal(local_coords[tri_id * 9 + 3],
+                              local_coords[tri_id * 9 + 4],
+                              local_coords[tri_id * 9 + 5]);
 
                 // Flip it if if doesn't face the viewer
                 const float d = dot(cam.eye, normal) - dot(normal, v1);
                 if (d < 0) normal = normal * (-1.0f);
 
-                const float3 tangent = normalize(e1);
+                const float3 tangent(local_coords[tri_id * 9 + 6],
+                                     local_coords[tri_id * 9 + 7],
+                                     local_coords[tri_id * 9 + 8]);
+
                 const float3 bitangent = cross(normal, tangent);
 
                 for (int k = 0; k < cfg.samples; k++) {
@@ -303,13 +340,25 @@ int main(int argc, char** argv) {
 
     Camera cam = gen_camera(eye, center, up, cfg.fov, (float)cfg.width / (float)cfg.height);
 
+    // Generate a local coordinate system for each triangle
+    std::vector<float> local_coords;
+    {
+        std::vector<float> vertices;
+        std::vector<int> indices;
+        if (!load_mesh(accel_file, indices, vertices)) {
+            std::cerr << "Cannot load geometry." << std::endl;
+            return EXIT_FAILURE;
+        }
+        gen_local_coords(indices, vertices, local_coords);
+    }
+
     std::vector<float> image(cfg.width * cfg.height);
     RayBuffer primary(image.size());
     RayBuffer ao_buffer(image.size() * 4);
 
     if (output.length()) {
         // Render to a file and exit
-        render_image(cam, cfg, image.data(), nodes, tris, primary, ao_buffer);
+        render_image(cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
         std::ofstream out(output, std::ofstream::binary);
         out.write((const char*)image.data(), image.size() * sizeof(float));
         return EXIT_SUCCESS;
@@ -356,7 +405,7 @@ int main(int argc, char** argv) {
             frames = 0;
         }
 
-        render_image(cam, cfg, image.data(), nodes, tris, primary, ao_buffer);
+        render_image(cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
         frames++;
         accum++;
 

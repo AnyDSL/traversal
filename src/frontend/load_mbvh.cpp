@@ -49,18 +49,13 @@ bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, tho
                     Vec4 e1_x, e1_y, e1_z;
                     Vec4 e2_x, e2_y, e2_z;
                     Vec4 n_x, n_y, n_z;
+                    Vec4 ids;
                 } tri_data;
-                float raw_data[4 * 4 * 3];
+                float raw_data[4 * 13];
             } tri;
 
-            memcpy(tri.raw_data, vertices.data() + node.children[c] * 4 + i * 4 * 4 * 3, sizeof(float) * 4 * 4 * 3);
+            memcpy(tri.raw_data, vertices.data() + node.children[c] * 4 + i * 4 * 13, sizeof(float) * 4 * 13);
 
-            Vec4 ids = {
-                as_float(tri_stack.size() * 4 + 0),
-                as_float(tri_stack.size() * 4 + 1),
-                as_float(tri_stack.size() * 4 + 2),
-                as_float(tri_stack.size() * 4 + 3)
-            };
             tri_stack.push_back(tri.tri_data.v0_x);
             tri_stack.push_back(tri.tri_data.v0_y);
             tri_stack.push_back(tri.tri_data.v0_z);
@@ -73,7 +68,7 @@ bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, tho
             tri_stack.push_back(tri.tri_data.n_x);
             tri_stack.push_back(tri.tri_data.n_y);
             tri_stack.push_back(tri.tri_data.n_z);
-            tri_stack.push_back(ids);
+            tri_stack.push_back(tri.tri_data.ids);
         }
 
         // Insert sentinel

@@ -5,7 +5,8 @@
 
 enum class BlockType {
     BVH = 1,
-    MBVH = 2
+    MBVH = 2,
+    MESH = 3
 };
 
 namespace bvh {
@@ -40,6 +41,14 @@ namespace mbvh {
         BBox bb[4];
         int32_t children[4];
         int32_t prim_count[4];
+    };
+}
+
+namespace mesh {
+    struct Header {
+        uint32_t vert_count;
+        uint32_t index_count;
+        uint32_t tri_count;
     };
 }
 
