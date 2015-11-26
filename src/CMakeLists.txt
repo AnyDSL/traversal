@@ -13,6 +13,7 @@ set(COMMON_SRCS
     common/stack.impala
     common/range.impala
     common/vector.impala
+    common/transparency.impala
     common/traversal.impala)
 
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")

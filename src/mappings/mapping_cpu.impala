@@ -44,96 +44,155 @@ struct Node {
     children: [i32 * 4]
 }
 
-fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], body: fn (Tri, Intr) -> ()) -> () {
-    // Cull this leaf if it is too far away
-    if all(greater_eq(stack.tmin(), t)) { return() }
+fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
+    |t, stack, body, return| {
+        // Cull this leaf if it is too far away
+        if all(greater_eq(stack.tmin(), t)) { return() }
 
-    let mut tri_id = !stack.top();
-    while true {
-        let tri_data = &tris(tri_id) as &[float];
+        let mut tri_id = !stack.top();
+        while true {
+            let tri_data = &tris(tri_id) as &[float];
+
+            for i in @unroll(0, 4) {
+                let id = bitcast_f32_i32(tri_data(48 + i));
+
+                let v0 = vec3(real(tri_data( 0 + i)), real(tri_data( 4 + i)), real(tri_data( 8 + i)));
+                let e1 = vec3(real(tri_data(12 + i)), real(tri_data(16 + i)), real(tri_data(20 + i)));
+                let e2 = vec3(real(tri_data(24 + i)), real(tri_data(28 + i)), real(tri_data(32 + i)));
+                let n  = vec3(real(tri_data(36 + i)), real(tri_data(40 + i)), real(tri_data(44 + i)));
+                let tri = Tri {
+                    v0: || { v0 },
+                    e1: || { e1 },
+                    e2: || { e2 },
+                    n:  || { n }
+                };
+
+                body(tri, intr(id));
+            }
+
+            if bitcast_f32_i32(tri_data(52)) == 0x80000000 {
+                break()
+            }
+
+            tri_id += 13;
+        }
+    }
+}
+
+fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
+    |t, stack, body, return| {
+        let node = nodes(stack.top());
+        let tmin = stack.tmin();
+        stack.pop();
+
+        // Cull this node if it is too far away
+        if all(greater_eq(tmin, t)) { return() }
 
         for i in @unroll(0, 4) {
-            let id = bitcast_f32_i32(tri_data(48 + i));
+            if node.children(i) == 0 { break() }
 
-            let v0 = vec3(real(tri_data( 0 + i)), real(tri_data( 4 + i)), real(tri_data( 8 + i)));
-            let e1 = vec3(real(tri_data(12 + i)), real(tri_data(16 + i)), real(tri_data(20 + i)));
-            let e2 = vec3(real(tri_data(24 + i)), real(tri_data(28 + i)), real(tri_data(32 + i)));
-            let n  = vec3(real(tri_data(36 + i)), real(tri_data(40 + i)), real(tri_data(44 + i)));
-            let tri = Tri {
-                v0: || { v0 },
-                e1: || { e1 },
-                e2: || { e2 },
-                n:  || { n }
+            let box = Box {
+                min: || { vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i))) },
+                max: || { vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i))) }
             };
 
-            body(tri, intr(id));
-        }
-
-        if bitcast_f32_i32(tri_data(52)) == 0x80000000 {
-            break()
-        }
-
-        tri_id += 13;
-    }
-}
-
-fn iterate_children(nodes: &[Node], t: Real, stack: Stack, body: fn(Box, fn (Real, Real) -> ()) -> ()) -> () {
-    let node = nodes(stack.top());
-    let tmin = stack.tmin();
-    stack.pop();
-
-    // Cull this node if it is too far away
-    if all(greater_eq(tmin, t)) { return() }
-
-    for i in @unroll(0, 4) {
-        if node.children(i) == 0 { break() }
-
-        let box = Box {
-            min: || { vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i))) },
-            max: || { vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i))) }
-        };
-
-        body(box, |t0, t1| {
-            let t = select_real(greater_eq(t1, t0), t0, real(flt_max));
-            if any(greater_eq(t1, t0)) {
-                if any(greater(stack.tmin(), t)) {
-                    stack.push_top(node.children(i), t)
-                } else {
-                    stack.push(node.children(i), t)
+            body(box, |t0, t1| {
+                let t = select_real(greater_eq(t1, t0), t0, real(flt_max));
+                if any(greater_eq(t1, t0)) {
+                    if any(greater(stack.tmin(), t)) {
+                        stack.push_top(node.children(i), t)
+                    } else {
+                        stack.push(node.children(i), t)
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 }
 
-fn iterate_rays(rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, Real, Real, HitFn) -> ()) -> () {
-    assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
+fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+    |ray_count, body| {
+        assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
-    for i in range_step(0, ray_count, vector_size) @{
-        let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x, rays(i + 4).org.x, rays(i + 5).org.x, rays(i + 6).org.x, rays(i + 7).org.x],
-                       simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y, rays(i + 4).org.y, rays(i + 5).org.y, rays(i + 6).org.y, rays(i + 7).org.y],
-                       simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z, rays(i + 4).org.z, rays(i + 5).org.z, rays(i + 6).org.z, rays(i + 7).org.z]);
-        let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x, rays(i + 4).dir.x, rays(i + 5).dir.x, rays(i + 6).dir.x, rays(i + 7).dir.x],
-                       simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y, rays(i + 4).dir.y, rays(i + 5).dir.y, rays(i + 6).dir.y, rays(i + 7).dir.y],
-                       simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z, rays(i + 4).dir.z, rays(i + 5).dir.z, rays(i + 6).dir.z, rays(i + 7).dir.z]);
-        let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w, rays(i + 4).org.w, rays(i + 5).org.w, rays(i + 6).org.w, rays(i + 7).org.w];
-        let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w, rays(i + 4).dir.w, rays(i + 5).dir.w, rays(i + 6).dir.w, rays(i + 7).dir.w];
+        for j in $parallel(0, 0, ray_count / vector_size) {
+            for i in range_step(j * vector_size, (j + 1) * vector_size, vector_size) @{
+                let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x, rays(i + 4).org.x, rays(i + 5).org.x, rays(i + 6).org.x, rays(i + 7).org.x],
+                               simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y, rays(i + 4).org.y, rays(i + 5).org.y, rays(i + 6).org.y, rays(i + 7).org.y],
+                               simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z, rays(i + 4).org.z, rays(i + 5).org.z, rays(i + 6).org.z, rays(i + 7).org.z]);
+                let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x, rays(i + 4).dir.x, rays(i + 5).dir.x, rays(i + 6).dir.x, rays(i + 7).dir.x],
+                               simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y, rays(i + 4).dir.y, rays(i + 5).dir.y, rays(i + 6).dir.y, rays(i + 7).dir.y],
+                               simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z, rays(i + 4).dir.z, rays(i + 5).dir.z, rays(i + 6).dir.z, rays(i + 7).dir.z]);
+                let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w, rays(i + 4).org.w, rays(i + 5).org.w, rays(i + 6).org.w, rays(i + 7).org.w];
+                let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w, rays(i + 4).dir.w, rays(i + 5).dir.w, rays(i + 6).dir.w, rays(i + 7).dir.w];
 
-        body(org, dir, tmin, tmax, |tri, t, u, v| {
-            for j in @unroll(0, vector_size) {
-                hits(i + j).tri_id = tri(j);
-                hits(i + j).tmax = t(j);
-                hits(i + j).u = u(j);
-                hits(i + j).v = v(j);
+                body(org, dir, tmin, tmax, |tri, t, u, v| {
+                    for j in @unroll(0, vector_size) {
+                        hits(i + j).tri_id = tri(j);
+                        hits(i + j).tmax = t(j);
+                        hits(i + j).u = u(j);
+                        hits(i + j).v = v(j);
+                    }
+                });
             }
-        });
+        }
+    }
+}
+
+fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
+    |mask, tri_id, u, v| {
+        let mut bit_mask = movmskps256(mask);
+        let mut transp = bitcast8_f32_i32(mask);
+        let w = real(1.0f) - u - v;
+        for i in @unroll(0, vector_size) {
+            if (bit_mask & 1) != 0 {
+                let tri = *(&indices(tri_id(i) * 4) as &simd[i32 * 4]);
+                let uv0 = texcoords(tri(0));
+                let uv1 = texcoords(tri(1));
+                let uv2 = texcoords(tri(2));
+
+                let tu = uv0.x * w(i) + uv1.x * u(i) + uv2.x * v(i);
+                let tv = uv0.y * w(i) + uv1.y * u(i) + uv2.y * v(i);
+
+                let m = $lookup_mask(masks(tri(3)), mask_buf, tu, tv);
+
+                transp(i) = if m { -1 } else { 0 }
+            }
+            bit_mask = bit_mask >> 1;
+        }
+        bitcast8_i32_f32(transp)
     }
 }
 
 extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, false)
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             no_transparency,
+             ray_count, false)
 }
 
 extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, true)
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             no_transparency,
+             ray_count, true)
+}
+
+extern fn intersect_masked_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                               indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             transparency(indices, texcoords, masks, mask_buf),
+             ray_count, false)
+}
+
+extern fn occluded_masked_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                              indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             transparency(indices, texcoords, masks, mask_buf),
+             ray_count, true)
 }

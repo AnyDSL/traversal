@@ -47,105 +47,156 @@ struct Node {
     pad1: i32
 }
 
-fn iterate_triangles(nodes: &[Node], t: Real, stack: Stack, mut tris: &[Vec4], body: fn (Tri, Intr) -> ()) -> () {
-    let mut loop_id = !stack.top();
-    while true {
-        let sv0 = ldg4_f32(&tris(loop_id + 0) as &simd[f32 * 4]);
-        let sv1 = ldg4_f32(&tris(loop_id + 1) as &simd[f32 * 4]);
-        let sv2 = ldg4_f32(&tris(loop_id + 2) as &simd[f32 * 4]);
+fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
+    |t, stack, body| {
+        let mut loop_id = !stack.top();
+        while true {
+            let sv0 = ldg4_f32(&tris(loop_id + 0) as &simd[f32 * 4]);
+            let sv1 = ldg4_f32(&tris(loop_id + 1) as &simd[f32 * 4]);
+            let sv2 = ldg4_f32(&tris(loop_id + 2) as &simd[f32 * 4]);
 
-        let v0 = vec3(sv0(0), sv0(1), sv0(2));
-        let v1 = vec3(sv1(0), sv1(1), sv1(2));
-        let v2 = vec3(sv2(0), sv2(1), sv2(2));
+            let v0 = vec3(sv0(0), sv0(1), sv0(2));
+            let v1 = vec3(sv1(0), sv1(1), sv1(2));
+            let v2 = vec3(sv2(0), sv2(1), sv2(2));
 
-        let e1 = vec3_sub(v0, v1);
-        let e2 = vec3_sub(v2, v0);
-        let n = vec3_cross(e1, e2);
+            let e1 = vec3_sub(v0, v1);
+            let e2 = vec3_sub(v2, v0);
+            let n = vec3_cross(e1, e2);
 
-        let tri = Tri {
-            v0: || { v0 },
-            e1: || { e1 },
-            e2: || { e2 },
-            n:  || { n }
-        };
+            let tri = Tri {
+                v0: || { v0 },
+                e1: || { e1 },
+                e2: || { e2 },
+                n:  || { n }
+            };
 
-        body(tri, bitcast_f32_i32(sv1(3)));
+            body(tri, bitcast_f32_i32(sv1(3)));
 
-        if bitcast_f32_i32(sv2(3)) == 0x80000000 {
-            break()
+            if bitcast_f32_i32(sv2(3)) == 0x80000000 {
+                break()
+            }
+
+            loop_id += 3;
         }
-
-        loop_id += 3;
     }
 }
 
-fn iterate_children(mut nodes: &[Node], t: Real, stack: Stack, body: fn(Box, fn (Real, Real) -> ()) -> ()) -> () {
-    let mut node_ptr = &nodes(stack.top()) as &[f32];
-    let bb0 = ldg4_f32(&node_ptr(0) as &simd[f32 * 4]);
-    let bb1 = ldg4_f32(&node_ptr(4) as &simd[f32 * 4]);
-    let bb2 = ldg4_f32(&node_ptr(8) as &simd[f32 * 4]);
-    let mut children = ldg4_i32(&node_ptr(12) as &simd[i32 * 4]);
+fn iterate_children(mut nodes: &[Node]) -> IterateChildrenFn {
+    |t, stack, body| {
+        let mut node_ptr = &nodes(stack.top()) as &[f32];
+        let bb0 = ldg4_f32(&node_ptr(0) as &simd[f32 * 4]);
+        let bb1 = ldg4_f32(&node_ptr(4) as &simd[f32 * 4]);
+        let bb2 = ldg4_f32(&node_ptr(8) as &simd[f32 * 4]);
+        let mut children = ldg4_i32(&node_ptr(12) as &simd[i32 * 4]);
 
-    let box1 = Box {
-        min: || { vec3(bb0(0), bb0(2), bb1(0)) },
-        max: || { vec3(bb0(1), bb0(3), bb1(1)) }
-    };
+        let box1 = Box {
+            min: || { vec3(bb0(0), bb0(2), bb1(0)) },
+            max: || { vec3(bb0(1), bb0(3), bb1(1)) }
+        };
 
-    let box2 = Box {
-        min: || { vec3(bb1(2), bb2(0), bb2(2)) },
-        max: || { vec3(bb1(3), bb2(1), bb2(3)) }
-    };
+        let box2 = Box {
+            min: || { vec3(bb1(2), bb2(0), bb2(2)) },
+            max: || { vec3(bb1(3), bb2(1), bb2(3)) }
+        };
 
-    body(box1, |t00, t01| {
-        body(box2, |t10, t11| {
-            let hit0 = t00 <= t01;
-            let hit1 = t10 <= t11;
-            if !hit0 && !hit1 {
-                stack.pop();
-            } else {
-                if hit0 && hit1 {
-                    if t00 < t10 {
-                        let children0 = children(0);
-                        children(0) = children(1);
-                        children(1) = children0;
-                    }
-                    stack.push(children(0), 0.0f);
-                    stack.set_top(children(1), 0.0f);
+        body(box1, |t00, t01| {
+            body(box2, |t10, t11| {
+                let hit0 = t00 <= t01;
+                let hit1 = t10 <= t11;
+                if !hit0 && !hit1 {
+                    stack.pop();
                 } else {
-                    stack.set_top(if hit0 { children(0) } else { children(1) }, 0.0f)
+                    if hit0 && hit1 {
+                        if t00 < t10 {
+                            let children0 = children(0);
+                            children(0) = children(1);
+                            children(1) = children0;
+                        }
+                        stack.push(children(0), 0.0f);
+                        stack.set_top(children(1), 0.0f);
+                    } else {
+                        stack.set_top(if hit0 { children(0) } else { children(1) }, 0.0f)
+                    }
                 }
-            }
+            });
         });
-    });
+    }
 }
 
-fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit], ray_count: i32, body: fn (Vec3, Vec3, Real, Real, HitFn) -> ()) -> () {
-    let dev = acc_dev();
-    let grid = (ray_count / block_h, block_h, 1);
-    let block = (block_w, block_h, 1);
+fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+    |ray_count, body| @{
+        let dev = acc_dev();
+        let grid = (ray_count / block_h, block_h, 1);
+        let block = (block_w, block_h, 1);
 
-    acc(dev, grid, block, |exit| {
-        let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
-        if id > ray_count {
-            exit()
+        acc(dev, grid, block, |exit| {
+            let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
+            if id > ray_count {
+                exit()
+            }
+
+            let mut ray_ptr = &rays(id) as &[f32];
+            let ray0 = ldg4_f32(&ray_ptr(0) as &simd[f32 * 4]);
+            let ray1 = ldg4_f32(&ray_ptr(4) as &simd[f32 * 4]);
+
+            @body(vec3(ray0(0), ray0(1), ray0(2)),
+                  vec3(ray1(0), ray1(1), ray1(2)),
+                  ray0(3), ray1(3), |tri, t, u, v| {
+                *(&hits(id) as &simd[f32 * 4]) = simd[bitcast_i32_f32(tri), t, u, v];
+            });
+        })
+    }
+}
+
+fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
+    |mask, tri_id, u, v| {
+        if mask {
+            let tri = *(&indices(tri_id * 4) as &simd[i32 * 4]);
+            let uv0 = texcoords(tri(0));
+            let uv1 = texcoords(tri(1));
+            let uv2 = texcoords(tri(2));
+
+            let w = 1.0f - u - v;
+            let tu = uv0.x * w + uv1.x * u + uv2.x * v;
+            let tv = uv0.y * w + uv1.y * u + uv2.y * v;
+
+            lookup_mask(masks(tri(3)), mask_buf, tu, tv)
+        } else {
+            false
         }
-
-        let mut ray_ptr = &rays(id) as &[f32];
-        let ray0 = ldg4_f32(&ray_ptr(0) as &simd[f32 * 4]);
-        let ray1 = ldg4_f32(&ray_ptr(4) as &simd[f32 * 4]);
-
-        @body(vec3(ray0(0), ray0(1), ray0(2)),
-              vec3(ray1(0), ray1(1), ray1(2)),
-              ray0(3), ray1(3), |tri, t, u, v| {
-            *(&hits(id) as &simd[f32 * 4]) = simd[bitcast_i32_f32(tri), t, u, v];
-        });
-    })
+    }
 }
 
 extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    @traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, false)
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             no_transparency,
+             ray_count, false)
 }
 
 extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    @traverse(iterate_rays, iterate_children, iterate_triangles, nodes, tris, rays, hits, ray_count, true)
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             no_transparency,
+             ray_count, true)
+}
+
+extern fn intersect_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                               indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             transparency(indices, texcoords, masks, mask_buf),
+             ray_count, false)
+}
+
+extern fn occluded_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                              indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    traverse(iterate_rays(rays, hits),
+             iterate_children(nodes),
+             iterate_triangles(nodes, tris),
+             transparency(indices, texcoords, masks, mask_buf),
+             ray_count, true)
 }

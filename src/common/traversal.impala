@@ -3,6 +3,11 @@ struct Ray {
     dir: Vec4
 }
 
+struct Vec2 {
+    x: f32,
+    y: f32
+}
+
 struct Vec4 {
     x: f32,
     y: f32,
@@ -20,17 +25,19 @@ struct Hit {
 type RecordHitFn = fn (Intr, Real, Real, Real) -> ();
 type BoxHitFn = fn (Real, Real) -> ();
 
-type IterateRaysFn = fn (&[Ray], &[Hit], i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
-type IterateChildrenFn = fn (&[Node], Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
-type IterateTrianglesFn = fn (&[Node], Real, Stack, &[Vec4], fn (Tri, Intr) -> ()) -> ();
+type IterateRaysFn = fn (i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
+type IterateChildrenFn = fn (Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
+type IterateTrianglesFn = fn (Real, Stack, fn (Tri, Intr) -> ()) -> ();
+type TransparencyFn = fn (Mask, Intr, Real, Real) -> Mask;
+
+fn no_transparency(mask: Mask, id: Intr, u: Real, v: Real) -> Mask { mask }
 
 fn traverse(iterate_rays: IterateRaysFn,
             iterate_children: IterateChildrenFn,
             iterate_triangles: IterateTrianglesFn,
-            nodes: &[Node], tris: &[Vec4],
-            rays: &[Ray], hits: &[Hit],
-            ray_count: i32, occlusion: bool) -> () {
-    for org, dir, tmin, tmax, record_hit in iterate_rays(rays, hits, ray_count) {
+            transparency: TransparencyFn,
+            ray_count: i32, any: bool) -> () {
+    for org, dir, tmin, tmax, record_hit in iterate_rays(ray_count) {
         // Allocate a stack for the traversal
         let stack = allocate_stack();
 
@@ -49,20 +56,22 @@ fn traverse(iterate_rays: IterateRaysFn,
             let terminate = break;
 
             // Intersect children and update stack
-            for box, hit in iterate_children(nodes, t, stack) {
+            for box, hit in iterate_children(t, stack) {
                 intersect_ray_box(oidir, idir, tmin, t, box, hit);
             }
 
             // Intersect leaves
             while is_leaf(stack.top()) {
-                for tri, id in iterate_triangles(nodes, t, stack, tris) {
-                    intersect_ray_tri(org, dir, tmin, t, tri, |mask, t0, u0, v0| {
+                for tri, id in iterate_triangles(t, stack) {
+                    intersect_ray_tri(org, dir, tmin, t, tri, |mut mask, t0, u0, v0| {
+                        mask = transparency(mask, id, u0, v0);
+
                         t = select_real(mask, t0, t);
                         u = select_real(mask, u0, u);
                         v = select_real(mask, v0, v);
                         tri_id = select_intr(mask, id, tri_id);
 
-                        if occlusion && terminated(tri_id) {
+                        if any && terminated(tri_id) {
                             terminate()
                         }
                     });

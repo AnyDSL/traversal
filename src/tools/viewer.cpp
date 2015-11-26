@@ -58,15 +58,7 @@ public:
     template <typename F>
     void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
 #ifdef CPU
-#define CHUNK 256
-        #pragma omp parallel for schedule(dynamic)
-        for (int i = 0; i < size(); i += CHUNK)
-        {
-            // No copy is needed when the program runs on the CPU
-            const int count = (i + CHUNK <= size()) ? CHUNK : size() - i;
-            f(nodes.data(), tris.data(), rays() + i, hits() + i, count);
-        }
-#undef CHUNK
+        f(nodes.data(), tris.data(), rays(), hits(), size());
 #else
         thorin::copy(host_rays, dev_rays);
         f(nodes.data(), tris.data(), dev_rays.data(), dev_hits.data(), size());
