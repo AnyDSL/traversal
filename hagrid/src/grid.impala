@@ -1,0 +1,349 @@
+static flt_max = 1.0e+37f;
+
+fn prodsign(x: f32, y: f32) -> f32 {
+    bitcast_i32_f32(bitcast_f32_i32(x) ^ (bitcast_f32_i32(y) & 0x80000000))
+}
+
+fn safe_rcp(x: f32) -> f32 {
+    if x == 0.0f {
+        copysignf(flt_max, x)
+    } else {
+        1.0f / x
+    }
+}
+
+fn clamp(a: i32, b: i32, c: i32) -> i32 {
+    if a < b {
+        b
+    } else if a > c {
+        c
+    } else {
+        a
+    }
+}
+
+fn range(a: i32, b: i32, body: fn(i32) -> ()) -> () {
+    if a < b {
+        body(a);
+        range(a + 1, b, body, return)
+    }
+}
+
+struct Vec3f {
+    x: f32,
+    y: f32,
+    z: f32
+}
+
+struct Vec3i {
+    x: i32,
+    y: i32,
+    z: i32
+}
+
+fn vec3f(x: f32, y: f32, z: f32) -> Vec3f {
+    Vec3f {
+        x: x,
+        y: y,
+        z: z
+    }
+}
+
+fn vec3i(x: i32, y: i32, z: i32) -> Vec3i {
+    Vec3i {
+        x: x,
+        y: y,
+        z: z
+    }
+}
+
+fn vec3f_map(a: Vec3f, f: fn(f32) -> i32) -> Vec3i {
+    Vec3i {
+        x: f(a.x),
+        y: f(a.y),
+        z: f(a.z)
+    }
+}
+
+fn vec3i_map(a: Vec3i, f: fn(i32) -> f32) -> Vec3f {
+    Vec3f {
+        x: f(a.x),
+        y: f(a.y),
+        z: f(a.z)
+    }
+}
+
+fn vec3f_add(a: Vec3f, b: Vec3f) -> Vec3f {
+    Vec3f {
+        x: a.x + b.x,
+        y: a.y + b.y,
+        z: a.z + b.z
+    }
+}
+
+fn vec3i_add(a: Vec3i, b: Vec3i) -> Vec3i {
+    Vec3i {
+        x: a.x + b.x,
+        y: a.y + b.y,
+        z: a.z + b.z
+    }
+}
+
+fn vec3f_sub(a: Vec3f, b: Vec3f) -> Vec3f {
+    Vec3f {
+        x: a.x - b.x,
+        y: a.y - b.y,
+        z: a.z - b.z
+    }
+}
+
+fn vec3f_mul(a: Vec3f, b: Vec3f) -> Vec3f {
+    Vec3f {
+        x: a.x * b.x,
+        y: a.y * b.y,
+        z: a.z * b.z
+    }
+}
+
+fn vec3f_div(a: Vec3f, b: Vec3f) -> Vec3f {
+    Vec3f {
+        x: a.x / b.x,
+        y: a.y / b.y,
+        z: a.z / b.z
+    }
+}
+
+fn vec3f_fma(a: f32, b: Vec3f, c: Vec3f) -> Vec3f {
+    Vec3f {
+        x: a * b.x + c.x,
+        y: a * b.y + c.y,
+        z: a * b.z + c.z
+    }
+}
+
+fn vec3f_abs(a: Vec3f) -> Vec3f {
+    Vec3f {
+        x: fabsf(a.x),
+        y: fabsf(a.y),
+        z: fabsf(a.z)
+    }
+}
+
+fn vec3f_cross(a: Vec3f, b: Vec3f) -> Vec3f {
+    Vec3f {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+    }
+}
+
+fn vec3f_dot(a: Vec3f, b: Vec3f) -> f32 {
+    a.x * b.x + a.y * b.y + a.z * b.z
+}
+
+struct Grid {
+    dims: Vec3i,      // Cells range: [0..dims)
+    min: Vec3f,       // Minimum coordinates of the grid along each axis
+    max: Vec3f,       // Maximum coordinates of the grid along each axis
+    cell_size: Vec3f, // Cell size = (max - min) / dims
+    inv_size: Vec3f   // Cell inverse size = dims / (max - min)
+}
+
+struct Cell {
+    begin: i32,
+    end: i32
+}
+
+struct Tri {
+    v0: Vec3f,
+    nx: f32,
+    e1: Vec3f,
+    ny: f32,
+    e2: Vec3f,
+    nz: f32
+}
+
+struct Ray {
+    org: Vec3f,
+    tmin: f32,
+    dir: Vec3f,
+    tmax: f32
+}
+
+struct Hit {
+    tri_id: i32,
+    t: f32,
+    u: f32,
+    v: f32
+}
+
+type IntersectBoxFn = fn (f32, f32) -> ();
+type IntersectTriFn = fn (f32, f32, f32) -> ();
+type IntersectCellFn = fn (i32, i32, i32, f32, f32) -> bool;
+
+fn intersect_ray_box(org: Vec3f, inv_dir: Vec3f, min: Vec3f, max: Vec3f, intr: IntersectBoxFn) -> () {
+    let tmin = vec3f_mul(vec3f_sub(min, org), inv_dir);
+    let tmax = vec3f_mul(vec3f_sub(max, org), inv_dir);
+
+    let t0x = fminf(tmin.x, tmax.x);
+    let t0y = fminf(tmin.y, tmax.y);
+    let t0z = fminf(tmin.z, tmax.z);
+
+    let t1x = fmaxf(tmin.x, tmax.x);
+    let t1y = fmaxf(tmin.y, tmax.y);
+    let t1z = fmaxf(tmin.z, tmax.z);
+
+    intr(fmaxf(t0x, fmaxf(t0y, t0z)), fminf(t1x, fminf(t1y, t1z)));
+}
+
+fn intersect_ray_tri(org: Vec3f, dir: Vec3f, tmin: f32, tmax: f32, v0: Vec3f, e1: Vec3f, e2: Vec3f, n: Vec3f, intr: IntersectTriFn) -> () {
+    let c = vec3f_sub(v0, org);
+    let r = vec3f_cross(dir, c);
+    let det = vec3f_dot(n, dir);
+    let abs_det = fabsf(det);
+
+    let u = prodsign(vec3f_dot(r, e2), det);
+    let v = prodsign(vec3f_dot(r, e1), det);
+    let w = abs_det - u - v;
+
+    if u >= 0.0f && v >= 0.0f && w >= 0.0f {
+        let t = prodsign(vec3f_dot(n, c), det);
+        if det != 0.0f && t >= abs_det * tmin && abs_det * tmax >= t {
+            let inv_det = 1.0f / abs_det;
+            intr(t * inv_det, u * inv_det, v * inv_det);
+        }
+    }
+}
+
+fn traverse_grid(grid: Grid, org: Vec3f, dir: Vec3f, inv_dir: Vec3f, tmin: f32, tmax: f32, intersect_cell: IntersectCellFn) -> () @{
+    let step = vec3f_map(dir, |x| { if x > 0.0f { 1 } else { -1 } });
+    let delta = vec3f_abs(vec3f_mul(grid.cell_size, inv_dir));
+
+    let mut tentry: f32;
+    let mut texit: f32;
+    with t0, t1 in intersect_ray_box(org, inv_dir, grid.min, grid.max) {
+        tentry = fmaxf(t0, tmin);
+        texit = fminf(t1, tmax);
+    }
+
+    if tentry > texit {
+        return()    
+    }
+
+    let entry = vec3f_fma(tentry, dir, org);
+    let mut voxel = vec3f_map(vec3f_mul(vec3f_sub(entry, grid.min), grid.inv_size), |x| x as i32);
+
+    voxel.x = clamp(voxel.x, 0, grid.dims.x - 1);
+    voxel.y = clamp(voxel.y, 0, grid.dims.y - 1);
+    voxel.z = clamp(voxel.z, 0, grid.dims.z - 1);
+
+    let next_voxel = vec3i_add(voxel, vec3f_map(dir, |x| { if x > 0.0f { 1 } else { 0 } }));
+    let next = vec3f_add(vec3f_mul(vec3i_map(next_voxel, |x| x as f32), grid.cell_size), grid.min);
+    let mut tnext = vec3f_mul(vec3f_sub(next, org), inv_dir);
+
+    while true {
+        let t = fminf(tnext.x, fminf(tnext.y, tnext.z));
+
+        if intersect_cell(voxel.x, voxel.y, voxel.z, tentry, t) {
+            break()
+        }
+
+        if t == tnext.x {
+            tnext.x += delta.x;
+            voxel.x += step.x;
+            if voxel.x < 0 || voxel.x >= grid.dims.x  {
+                break()
+            }
+        } else if t == tnext.y {
+            tnext.y += delta.y;
+            voxel.y += step.y;
+            if voxel.y < 0 || voxel.y >= grid.dims.y {
+                break()
+            }
+        } else {
+            tnext.z += delta.z;
+            voxel.z += step.z;
+            if voxel.z < 0 || voxel.z >= grid.dims.z {
+                break()
+            }
+        }
+    }
+}
+
+extern "C" {
+    fn magic_grid_id(Grid) -> Grid;
+}
+
+extern fn traverse_grid_gpu(cells: &[Cell], dims: &Vec3i,
+                            min: &Vec3f, max: &Vec3f, mut tris: &[Tri],
+                            mut rays: &[Ray], mut hits: &[Hit], ray_count: i32) -> () {
+    let grid_min = *min;
+    let grid_max = *max;
+    let grid_size = vec3f_sub(grid_max, grid_min);
+    let grid_dim = vec3i_map(*dims, |x| x as f32);
+
+    let grid = Grid {
+        dims: vec3i(dims.x, dims.y, dims.z),
+        min: grid_min,
+        max: grid_max,
+        cell_size: vec3f_div(grid_size, grid_dim),
+        inv_size: vec3f_div(grid_dim, grid_size)
+    };
+
+    let dim0 = dims.x;
+    let dim01 = dims.x * dims.y;
+
+    let block_w = 32;
+    let block_h = 4;
+
+    acc(acc_dev(), (ray_count / block_h, block_h, 1), (block_w, block_h, 1), |break| @{
+        let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
+        if id >= ray_count {
+            break()
+        }
+
+        let ray_ptr = &rays(id) as &[simd[f32 * 4]];
+        let ray0 = ray_ptr(0);
+        let ray1 = ray_ptr(1);
+        let ray = Ray {
+            org: vec3f(ray0(0), ray0(1), ray0(2)),
+            tmin: ray0(3),
+            dir: vec3f(ray1(0), ray1(1), ray1(2)),
+            tmax: ray1(3)
+        };
+        let inv_dir = vec3f(safe_rcp(ray.dir.x), safe_rcp(ray.dir.y), safe_rcp(ray.dir.z));
+
+        let mut t = ray.tmax;
+        let mut u = 0.0f;
+        let mut v = 0.0f;
+        let mut tri_id = -1;
+
+        with x, y, z, tmin, tmax in traverse_grid(magic_grid_id(grid), ray.org, ray.dir, inv_dir, ray.tmin, ray.tmax) {
+            let c = cells(z * dim01 + y * dim0 + x);
+
+            for i in range(c.begin, c.end) {
+                let tri_ptr = &tris(i) as &[simd[f32 * 4]];
+                let tri0 = tri_ptr(0);
+                let tri1 = tri_ptr(1);
+                let tri2 = tri_ptr(2);
+
+                let v0 = vec3f(tri0(0), tri0(1), tri0(2));
+                let e1 = vec3f(tri1(0), tri1(1), tri1(2));
+                let e2 = vec3f(tri2(0), tri2(1), tri2(2));
+                let n  = vec3f(tri0(3), tri1(3), tri2(3));
+
+                with t0, u0, v0 in intersect_ray_tri(ray.org, ray.dir, tmin, fminf(tmax, t), v0, e1, e2, n) {
+                    t = t0;
+                    u = u0;
+                    v = v0;
+                    tri_id = i;
+                }
+            }
+
+            tri_id >= 0
+        }
+
+        *(&hits(id) as &simd[f32 * 4]) = simd[bitcast_i32_f32(tri_id), t, u, v];
+    });
+}
+
