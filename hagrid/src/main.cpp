@@ -371,9 +371,9 @@ int main(int argc, char** argv) {
     bool done = false;
 
     const float fov = 60.0f;
-    Camera cam = gen_camera(float3(0.0f, 0.0f, -10.0f),
-                            float3(0.0f, 0.0f, 0.0f),
-                            float3(0.0f, 1.0f, 0.0f),
+    Camera cam = gen_camera(float3(10.4209, -0.270721, -0.058378),
+                            float3(-80.3837, -42.0259, -3.38165),
+                            float3(-0.418404, 0.907921, 0.0),
                             fov, (float)w / (float)h);
     View view = {
         cam.eye,                 // Eye
@@ -383,7 +383,7 @@ int main(int argc, char** argv) {
         100.0f, 0.005f, 1.0f     // View distance, rotation speed, translation speed
     };
 
-    const float clip = 2000.f;
+    const float clip = 50.f;
     long ktime = 0;
     int frames = 0;
     int ticks = 0;

@@ -5,7 +5,7 @@
 #include <random>
 #include <cassert>
 
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 #include <thorin_runtime.h>
 
 #include "../frontend/options.h"
@@ -361,10 +361,9 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    SDL_WM_SetCaption("Viewer", nullptr);
-    SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+    SDL_Window* win = SDL_CreateWindow("Viewer", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, cfg.width, cfg.height, 0);
 
-    SDL_Surface* screen = SDL_SetVideoMode(cfg.width, cfg.height, 32, SDL_DOUBLEBUF);
+    SDL_Surface* screen = SDL_GetWindowSurface(win);
     View view = {
         cam.eye,                 // Eye
         normalize(cam.dir),      // Forward
@@ -392,7 +391,7 @@ int main(int argc, char** argv) {
             float fps = 5 * 1000.0f / (SDL_GetTicks() - last);
             float mrays = cfg.width * cfg.height * fps * (cfg.samples + 1) / 1e6f;
             std::string str = "Viewer [" + to_string_p(fps) + " FPS, " + to_string_p(mrays) + " Mray/s]";
-            SDL_WM_SetCaption(str.c_str(), nullptr);
+            SDL_SetWindowTitle(win, str.c_str());
             last = SDL_GetTicks();
             frames = 0;
         }
@@ -415,12 +414,13 @@ int main(int argc, char** argv) {
         }
         SDL_UnlockSurface(screen);
 
-        SDL_Flip(screen);
+        SDL_UpdateWindowSurface(win);
 
         done = handle_events(view, accum);
         cam = gen_camera(view.eye, view.eye + view.forward * view.dist, view.up, cfg.fov, (float)cfg.width / (float)cfg.height);
     }
 
+    SDL_DestroyWindow(win);
     SDL_Quit();
 
     return EXIT_SUCCESS;
