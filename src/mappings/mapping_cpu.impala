@@ -9,30 +9,30 @@ type HitFn = fn (Intr, Real, Real, Real) -> ();
 fn real(x: f32) -> Real { simd[x, x, x, x, x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x, x, x, x, x] }
 
-fn terminated(a: Intr) -> bool { movmskps256(bitcast8_i32_f32(a)) == 0 }
+fn terminated(a: Intr) -> bool { movmskps256(bitcast[simd[i32 * 8],simd[f32 * 8]](a)) == 0 }
 fn any(m: Mask) -> bool { movmskps256(m) != 0 }
 fn all(m: Mask) -> bool { movmskps256(m) == 0xFF }
-fn and(a: Mask, b: Mask) -> Mask { bitcast8_i32_f32(bitcast8_f32_i32(a) & bitcast8_f32_i32(b)) }
+fn and(a: Mask, b: Mask) -> Mask { bitcast[simd[i32 * 8],simd[f32 * 8]](bitcast[simd[f32 * 8],simd[i32 * 8]](a) & bitcast[simd[f32 * 8],simd[i32 * 8]](b)) }
 fn greater_eq(a: Real, b: Real) -> Mask { cmpps256(b, a, 2i8) }
 fn greater(a: Real, b: Real) -> Mask    { cmpps256(b, a, 1i8) }
 fn not_eq(a: Real, b: Real) -> Mask     { cmpps256(b, a, 4i8) }
 fn select_real(m: Mask, a: Real, b: Real) -> Real { blendvps256(b, a, m) }
-fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { bitcast8_f32_i32(blendvps256(bitcast8_i32_f32(b), bitcast8_i32_f32(a), m)) }
+fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { bitcast[simd[f32 * 8],simd[i32 * 8]](blendvps256(bitcast[simd[i32 * 8],simd[f32 * 8]](b), bitcast[simd[i32 * 8],simd[f32 * 8]](a), m)) }
 
-fn abs_real(x: Real) -> Real { bitcast8_i32_f32(bitcast8_f32_i32(x) & intr(0x7FFFFFFF)) }
+fn abs_real(x: Real) -> Real { bitcast[simd[i32 * 8],simd[f32 * 8]](bitcast[simd[f32 * 8],simd[i32 * 8]](x) & intr(0x7FFFFFFF)) }
 fn rcp_real(x: Real) -> Real {
     let r = rcpps256(x);
     r * (real(2.0f) - x * r)
 }
 fn safe_rcp(x: Real) -> Real {
-    let sign_max = bitcast8_i32_f32(bitcast8_f32_i32(real(flt_max)) | (bitcast8_f32_i32(x) & intr(0x80000000)));
+    let sign_max = bitcast[simd[i32 * 8],simd[f32 * 8]](bitcast[simd[f32 * 8],simd[i32 * 8]](real(flt_max)) | (bitcast[simd[f32 * 8],simd[i32 * 8]](x) & intr(0x80000000)));
     blendvps256(sign_max, rcp_real(x), not_eq(x, real(0.0f)))
 }
-fn prodsign_real(x: Real, y: Real) -> Real { bitcast8_i32_f32(bitcast8_f32_i32(x) ^ (bitcast8_f32_i32(y) & intr(0x80000000))) }
+fn prodsign_real(x: Real, y: Real) -> Real { bitcast[simd[i32 * 8],simd[f32 * 8]](bitcast[simd[f32 * 8],simd[i32 * 8]](x) ^ (bitcast[simd[f32 * 8],simd[i32 * 8]](y) & intr(0x80000000))) }
 
 // Use integer instructions for min/max
-fn min_real(a: Real, b: Real) -> Real { bitcast8_i32_f32(select8_i32(bitcast8_f32_i32(a) < bitcast8_f32_i32(b), bitcast8_f32_i32(a), bitcast8_f32_i32(b))) }
-fn max_real(a: Real, b: Real) -> Real { bitcast8_i32_f32(select8_i32(bitcast8_f32_i32(a) > bitcast8_f32_i32(b), bitcast8_f32_i32(a), bitcast8_f32_i32(b))) }
+fn min_real(a: Real, b: Real) -> Real { bitcast[simd[i32 * 8],simd[f32 * 8]](select[simd[bool * 8],simd[i32 * 8]](bitcast[simd[f32 * 8],simd[i32 * 8]](a) < bitcast[simd[f32 * 8],simd[i32 * 8]](b), bitcast[simd[f32 * 8],simd[i32 * 8]](a), bitcast[simd[f32 * 8],simd[i32 * 8]](b))) }
+fn max_real(a: Real, b: Real) -> Real { bitcast[simd[i32 * 8],simd[f32 * 8]](select[simd[bool * 8],simd[i32 * 8]](bitcast[simd[f32 * 8],simd[i32 * 8]](a) > bitcast[simd[f32 * 8],simd[i32 * 8]](b), bitcast[simd[f32 * 8],simd[i32 * 8]](a), bitcast[simd[f32 * 8],simd[i32 * 8]](b))) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
 fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
@@ -54,7 +54,7 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
             let tri_data = &tris(tri_id) as &[float];
 
             for i in @unroll(0, 4) {
-                let id = bitcast_f32_i32(tri_data(48 + i));
+                let id = bitcast[f32,i32](tri_data(48 + i));
 
                 let v0 = vec3(real(tri_data( 0 + i)), real(tri_data( 4 + i)), real(tri_data( 8 + i)));
                 let e1 = vec3(real(tri_data(12 + i)), real(tri_data(16 + i)), real(tri_data(20 + i)));
@@ -70,7 +70,7 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
                 body(tri, intr(id));
             }
 
-            if bitcast_f32_i32(tri_data(52)) == 0x80000000 {
+            if bitcast[f32,i32](tri_data(52)) == 0x80000000 {
                 break()
             }
 
@@ -141,7 +141,7 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
 fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
     |mask, tri_id, u, v| {
         let mut bit_mask = movmskps256(mask);
-        let mut transp = bitcast8_f32_i32(mask);
+        let mut transp = bitcast[simd[f32 * 8],simd[i32 * 8]](mask);
         let w = real(1.0f) - u - v;
         for i in @unroll(0, vector_size) {
             if (bit_mask & 1) != 0 {
@@ -159,7 +159,7 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
             }
             bit_mask = bit_mask >> 1;
         }
-        bitcast8_i32_f32(transp)
+        bitcast[simd[i32 * 8],simd[f32 * 8]](transp)
     }
 }
 
