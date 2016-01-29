@@ -42,6 +42,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
 
 thorin_runtime_wrap(IMPALA_PROGRAM
                     BACKEND ${BACKEND}
+                    CLANG_FLAGS -march=native -ffast-math
                     FILES ${IMPALA_SRCS})
 
 set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
