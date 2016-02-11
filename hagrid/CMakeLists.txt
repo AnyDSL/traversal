@@ -1,6 +1,6 @@
 project(hagrid)
 
-cmake_minimum_required(VERSION 2.4)
+cmake_minimum_required(VERSION 3.0)
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("-std=c++11" COMPILER_SUPPORTS_CXX11)
