@@ -1,7 +1,7 @@
 static flt_max = 1.0e+37f;
 
 fn prodsign(x: f32, y: f32) -> f32 {
-    bitcast_i32_f32(bitcast_f32_i32(x) ^ (bitcast_f32_i32(y) & 0x80000000))
+    bitcast[f32, i32](bitcast[i32, f32](x) ^ (bitcast[i32, f32](y) & 0x80000000))
 }
 
 fn safe_rcp(x: f32) -> f32 {
@@ -343,7 +343,7 @@ extern fn traverse_grid_gpu(cells: &[Cell], dims: &Vec3i,
             tri_id >= 0
         }
 
-        *(&hits(id) as &simd[f32 * 4]) = simd[bitcast_i32_f32(tri_id), t, u, v];
+        *(&hits(id) as &simd[f32 * 4]) = simd[bitcast[f32, i32](tri_id), t, u, v];
     });
 }
 

@@ -17,5 +17,5 @@ thorin_runtime_wrap(IMPALA_PROGRAM
 set_source_files_properties(grid.h PROPERTIES GENERATED TRUE)
 
 add_executable(hagrid ${FRONTEND_SRCS} ${IMPALA_PROGRAM})
-target_link_libraries(hagrid ${THORIN_RUNTIME_LIBRARY} ${THORIN_RUNTIME_LIBRARIES} ${SDL_LIBRARY} -lassimp)
+target_link_libraries(hagrid ${THORIN_RUNTIME_LIBRARY} ${THORIN_RUNTIME_LIBRARIES} ${SDL2_LIBRARY} -lassimp)
 

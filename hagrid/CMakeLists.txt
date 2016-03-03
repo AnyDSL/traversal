@@ -2,6 +2,8 @@ project(hagrid)
 
 cmake_minimum_required(VERSION 3.0)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../cmake/modules")
+
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("-std=c++11" COMPILER_SUPPORTS_CXX11)
 check_cxx_compiler_flag("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
@@ -22,7 +24,7 @@ if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(BACKEND "cpu")
 endif()
 
-find_package(SDL REQUIRED)
-include_directories(${SDL_INCLUDE_DIR})
+find_package(SDL2 REQUIRED)
+include_directories(${SDL2_INCLUDE_DIR})
 
 add_subdirectory(src)

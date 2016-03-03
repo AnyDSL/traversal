@@ -7,7 +7,7 @@
 #include <assimp/postprocess.h>
 
 // SDL
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 
 // Thorin
 #include <thorin_runtime.hpp>
@@ -349,9 +349,8 @@ int main(int argc, char** argv) {
     }
 
     const int w = 1024, h = 1024;
-    SDL_WM_SetCaption("HaGrid", nullptr);
-    SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-    SDL_Surface* screen = SDL_SetVideoMode(w, h, 32, SDL_DOUBLEBUF);
+    SDL_Window* win = SDL_CreateWindow("HaGrid", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h, 0);
+    SDL_Surface* screen = SDL_GetWindowSurface(win);
 
     Vec3i dims = { GRID_X, GRID_Y, GRID_Z };
     Vec3f min, max;
@@ -383,7 +382,7 @@ int main(int argc, char** argv) {
         100.0f, 0.005f, 1.0f     // View distance, rotation speed, translation speed
     };
 
-    const float clip = 50.f;
+    const float clip = 5000.f;
     long ktime = 0;
     int frames = 0;
     int ticks = 0;
@@ -407,7 +406,7 @@ int main(int argc, char** argv) {
         if (SDL_GetTicks() - ticks >= 1000) {
             std::ostringstream caption;
             caption << "HaGrid [" << (double)((long)frames * w * h) / ktime << " MRays/s]";
-            SDL_WM_SetCaption(caption.str().c_str(), nullptr);
+            SDL_SetWindowTitle(win, caption.str().c_str());
             ticks = SDL_GetTicks();
             ktime = 0;
             frames = 0;
@@ -434,12 +433,13 @@ int main(int argc, char** argv) {
         }
         SDL_UnlockSurface(screen);
 
-        SDL_Flip(screen);
+        SDL_UpdateWindowSurface(win);
 
         done = handle_events(view);
         cam = gen_camera(view.eye, view.eye + view.forward * view.dist, view.up, fov, (float)w / (float)h);
     }
 
+    SDL_DestroyWindow(win);
     SDL_Quit();
     
     return 0;
