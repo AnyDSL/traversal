@@ -70,7 +70,7 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
                 body(tri, intr(id));
             }
 
-            if bitcast[i32](tri_data(52)) == 0x80000000 {
+            if bitcast[u32](tri_data(52)) == 0x80000000u {
                 break()
             }
 
