@@ -133,7 +133,8 @@ void gen_local_coords(const std::vector<int>& indices, const std::vector<float>&
     }
 }
 
-void render_image(const Camera& cam,
+void render_image(bool gen_primary,
+                  const Camera& cam,
                   const Config& cfg,
                   float* img,
                   thorin::Array<Node>& nodes,
@@ -148,15 +149,20 @@ void render_image(const Camera& cam,
     std::uniform_real_distribution<float> dist(0.f, 1.f);
 
     // Generate primary rays
-    for (int y = 0; y < cfg.height; y++) {
-        for (int x = 0; x < cfg.width; x++) {
-            const float kx = 2 * x / (float)cfg.width - 1;
-            const float ky = 1 - 2 * y / (float)cfg.height;
-            const float3 dir = cam.dir + cam.right * kx + cam.up * ky;
-            primary.rays()[y * cfg.width + x].org = make_vec4(cam.eye, 0.0f);
-            primary.rays()[y * cfg.width + x].dir = make_vec4(dir, cfg.clip);
+    if (gen_primary) {
+        for (int y = 0; y < cfg.height; y++) {
+            for (int x = 0; x < cfg.width; x++) {
+                const float kx = 2 * x / (float)cfg.width - 1;
+                const float ky = 1 - 2 * y / (float)cfg.height;
+                const float3 dir = cam.dir + cam.right * kx + cam.up * ky;
+                primary.rays()[y * cfg.width + x].org = make_vec4(cam.eye, 0.0f);
+                primary.rays()[y * cfg.width + x].dir = make_vec4(dir, cfg.clip);
+            }
         }
     }
+
+    // Assume that the eye position is the origin of the first ray
+    const float3 eye = from_vec4(primary.rays()[0].org);
 
     // Intersect them
     primary.traverse(intersect, nodes, tris);
@@ -188,7 +194,7 @@ void render_image(const Camera& cam,
                               local_coords[tri_id * 9 + 5]);
 
                 // Flip it if if doesn't face the viewer
-                const float d = dot(cam.eye, normal) - dot(normal, v1);
+                const float d = dot(eye, normal) - dot(normal, v1);
                 if (d < 0) normal = normal * (-1.0f);
 
                 const float3 tangent(local_coords[tri_id * 9 + 6],
@@ -292,7 +298,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    std::string accel_file;
+    std::string accel_file, rays_file;
     std::string eye_str, center_str, up_str;
     std::string output;
     Config cfg;
@@ -301,6 +307,7 @@ int main(int argc, char** argv) {
     parser.add_option<std::string>("accel", "a", "Sets the acceleration structure file name", accel_file, "input.bvh", "input.bvh");
     parser.add_option<float>("clip-dist", "clip", "Sets the view clipping distance", cfg.clip, 1e9f, "t");
     parser.add_option<std::string>("output", "o", "Write an fbuf file containing the rendered image and exit", output, "", "path");
+    parser.add_option<std::string>("rays", "r", "Uses the input ray distribution when rendering to a file", rays_file, "", "path");
     parser.add_option<int>("ao-samples", "s", "Number of ambient occlusion samples", cfg.samples, 4, " samples");
     parser.add_option<float>("ao-offset", "off", "Sets the offset for ambient occlusion rays", cfg.ao_offset, 0.001f, "t");
     parser.add_option<float>("ao-dist", "d", "Sets the maximum distance for ambient occlusion rays", cfg.ao_tmax, 10.f, "t");
@@ -348,12 +355,43 @@ int main(int argc, char** argv) {
     RayBuffer primary(image.size());
     RayBuffer ao_buffer(image.size() * 4);
 
+    const bool gen_primary = rays_file.length() == 0;
+
     if (output.length()) {
+        if (!gen_primary) {
+            std::ifstream in(rays_file, std::ifstream::binary);
+            if (!in) {
+                std::cerr << "Cannot open ray file." << std::endl;
+                return EXIT_FAILURE;
+            }
+
+            in.seekg(0, std::ifstream::end);
+            int count = in.tellg() / (sizeof(float) * 6);
+            in.seekg(0);
+
+            if (count != cfg.width * cfg.height) {
+                std::cerr << "Number of rays in ray file does not match resolution." << std::endl;
+                return EXIT_FAILURE;
+            }
+
+            for (int i = 0; i < count; i++) {
+                float org_dir[6];
+                in.read((char*)org_dir, sizeof(float) * 6);
+                primary.rays()[i].org = make_vec4(org_dir[0], org_dir[1], org_dir[2], 0.0f);
+                primary.rays()[i].dir = make_vec4(org_dir[3], org_dir[4], org_dir[5], cfg.clip);
+            }
+        }
+
         // Render to a file and exit
-        render_image(cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
+        render_image(gen_primary, cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
         std::ofstream out(output, std::ofstream::binary);
         out.write((const char*)image.data(), image.size() * sizeof(float));
         return EXIT_SUCCESS;
+    }
+
+    if (!gen_primary) {
+        std::cerr << "Ray file cannot be used in interactive mode." << std::endl;
+        return EXIT_FAILURE;
     }
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -396,7 +434,7 @@ int main(int argc, char** argv) {
             frames = 0;
         }
 
-        render_image(cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
+        render_image(true, cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
         frames++;
         accum++;
 
