@@ -134,6 +134,7 @@ void gen_local_coords(const std::vector<int>& indices, const std::vector<float>&
 }
 
 void render_image(bool gen_primary,
+                  const std::string& dump_rays,
                   const Camera& cam,
                   const Config& cfg,
                   float* img,
@@ -220,6 +221,16 @@ void render_image(bool gen_primary,
             }
         }
 
+        if (dump_rays.length()) {
+            std::ofstream ray_output(dump_rays, std::ofstream::binary | std::ofstream::app);
+            for (int i = 0; i < ao_rays; i++) {
+                for (int k = 0; k < cfg.samples; k++) {
+                    ray_output.write((const char*)&ao_buffer.rays()[i * cfg.samples + k].org, sizeof(float) * 3);
+                    ray_output.write((const char*)&ao_buffer.rays()[i * cfg.samples + k].dir, sizeof(float) * 3);
+                }
+            }
+        }
+
         if (ao_rays > 0) {
             // Get the intersection results
             ao_buffer.traverse(occluded, nodes, tris);
@@ -298,7 +309,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    std::string accel_file, rays_file;
+    std::string accel_file, rays_file, dump_rays;
     std::string eye_str, center_str, up_str;
     std::string output;
     Config cfg;
@@ -308,6 +319,7 @@ int main(int argc, char** argv) {
     parser.add_option<float>("clip-dist", "clip", "Sets the view clipping distance", cfg.clip, 1e9f, "t");
     parser.add_option<std::string>("output", "o", "Write an fbuf file containing the rendered image and exit", output, "", "path");
     parser.add_option<std::string>("rays", "r", "Uses the input ray distribution when rendering to a file", rays_file, "", "path");
+    parser.add_option<std::string>("dump-rays", "dump", "Dumps the ambient occlusion rays when rendering to a file", dump_rays, "", "path");
     parser.add_option<int>("ao-samples", "s", "Number of ambient occlusion samples", cfg.samples, 4, " samples");
     parser.add_option<float>("ao-offset", "off", "Sets the offset for ambient occlusion rays", cfg.ao_offset, 0.001f, "t");
     parser.add_option<float>("ao-dist", "d", "Sets the maximum distance for ambient occlusion rays", cfg.ao_tmax, 10.f, "t");
@@ -383,7 +395,7 @@ int main(int argc, char** argv) {
         }
 
         // Render to a file and exit
-        render_image(gen_primary, cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
+        render_image(gen_primary, dump_rays, cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
         std::ofstream out(output, std::ofstream::binary);
         out.write((const char*)image.data(), image.size() * sizeof(float));
         return EXIT_SUCCESS;
@@ -391,6 +403,11 @@ int main(int argc, char** argv) {
 
     if (!gen_primary) {
         std::cerr << "Ray file cannot be used in interactive mode." << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    if (dump_rays.length()) {
+        std::cerr << "Cannot dump ambient occlusion rays in interactive mode." << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -434,7 +451,7 @@ int main(int argc, char** argv) {
             frames = 0;
         }
 
-        render_image(true, cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
+        render_image(true, "", cam, cfg, image.data(), nodes, tris, local_coords, primary, ao_buffer);
         frames++;
         accum++;
 
