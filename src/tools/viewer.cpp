@@ -57,11 +57,16 @@ public:
 
     template <typename F>
     void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
+        traverse(f, nodes, tris, size());
+    }
+
+    template <typename F>
+    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris, int count) {
 #ifdef CPU
         f(nodes.data(), tris.data(), rays(), hits(), size());
 #else
         thorin::copy(host_rays, dev_rays);
-        f(nodes.data(), tris.data(), dev_rays.data(), dev_hits.data(), size());
+        f(nodes.data(), tris.data(), dev_rays.data(), dev_hits.data(), count);
         thorin::copy(dev_hits, host_hits);
 #endif
     }
@@ -162,95 +167,84 @@ void render_image(bool gen_primary,
         }
     }
 
-    // Assume that the eye position is the origin of the first ray
-    const float3 eye = from_vec4(primary.rays()[0].org);
-
     // Intersect them
     primary.traverse(intersect, nodes, tris);
 
-    // Proceed by groups of block_size pixels
-    int block_size = std::min(img_size, ao_buffer.size() / cfg.samples);
+    // Assume that the eye position is the origin of the first ray
+    const float3 eye = from_vec4(primary.rays()[0].org);
 
-    for (int i = 0; i < img_size; i += block_size) {
-        const int block_limit = (i + block_size > img_size) ? img_size - i : block_size;
+    std::ofstream rays_out;
+    if (dump_rays.length())
+        rays_out.open(dump_rays, std::ofstream::binary);
 
+    int ao_rays = 0, first_pixel = 0;
+    for (int cur_pixel = 0; cur_pixel < img_size; cur_pixel++) {
         // Generate ambient occlusion rays
-        int ao_rays = 0;
-        #pragma omp parallel for reduction(+:ao_rays)
-        for (int j = 0; j < block_limit; j++) {
-            const int ray_id = i + j;
-            const int tri_id = primary.hits()[ray_id].tri_id;
-            if (tri_id >= 0) {
-                const float t = primary.hits()[ray_id].tmax;
-                const float3 org = from_vec4(primary.rays()[ray_id].dir) * t +
-                                   from_vec4(primary.rays()[ray_id].org);
+        const int tri_id = primary.hits()[cur_pixel].tri_id;
+        if (tri_id >= 0) {
+            const float t = primary.hits()[cur_pixel].tmax;
+            const float3 org = from_vec4(primary.rays()[cur_pixel].dir) * t +
+                               from_vec4(primary.rays()[cur_pixel].org);
 
-                // Get the face normal, tangent, bitangent
-                const int tri_id = primary.hits()[ray_id].tri_id;
-                const float3 v1(local_coords[tri_id * 9 + 0],
-                                local_coords[tri_id * 9 + 1],
-                                local_coords[tri_id * 9 + 2]);
-                float3 normal(local_coords[tri_id * 9 + 3],
-                              local_coords[tri_id * 9 + 4],
-                              local_coords[tri_id * 9 + 5]);
+            // Get the face normal, tangent, bitangent
+            const int tri_id = primary.hits()[cur_pixel].tri_id;
+            const float3 v1(local_coords[tri_id * 9 + 0],
+                            local_coords[tri_id * 9 + 1],
+                            local_coords[tri_id * 9 + 2]);
+            float3 normal(local_coords[tri_id * 9 + 3],
+                          local_coords[tri_id * 9 + 4],
+                          local_coords[tri_id * 9 + 5]);
 
-                // Flip it if if doesn't face the viewer
-                const float d = dot(eye, normal) - dot(normal, v1);
-                if (d < 0) normal = normal * (-1.0f);
+            // Flip it if if doesn't face the viewer
+            const float d = dot(eye, normal) - dot(normal, v1);
+            if (d < 0) normal = normal * (-1.0f);
 
-                const float3 tangent(local_coords[tri_id * 9 + 6],
-                                     local_coords[tri_id * 9 + 7],
-                                     local_coords[tri_id * 9 + 8]);
+            const float3 tangent(local_coords[tri_id * 9 + 6],
+                                 local_coords[tri_id * 9 + 7],
+                                 local_coords[tri_id * 9 + 8]);
 
-                const float3 bitangent = cross(normal, tangent);
+            const float3 bitangent = cross(normal, tangent);
 
-                for (int k = 0; k < cfg.samples; k++) {
-                    const float u1 = dist(mt);
-                    const float u2 = dist(mt);
+            for (int k = 0; k < cfg.samples; k++) {
+                const float u1 = dist(mt);
+                const float u2 = dist(mt);
 
-                    const float3 s = cosine_weighted_sample_hemisphere(u1, u2);
-                    const float3 dir = normalize(s.x * tangent + s.y * bitangent + s.z * normal);
+                const float3 s = cosine_weighted_sample_hemisphere(u1, u2);
+                const float3 dir = normalize(s.x * tangent + s.y * bitangent + s.z * normal);
 
-                    ao_buffer.rays()[j * cfg.samples + k].org = make_vec4(org, cfg.ao_offset);
-                    ao_buffer.rays()[j * cfg.samples + k].dir = make_vec4(dir, cfg.ao_tmax);
-                }
-                ao_rays++;
-            } else {
-                // Do not generate garbage for rays that go out of the scene
-                memset(ao_buffer.rays() + j * cfg.samples, 0, sizeof(Ray) * cfg.samples);
+                ao_buffer.rays()[ao_rays + k].org = make_vec4(org, cfg.ao_offset);
+                ao_buffer.rays()[ao_rays + k].dir = make_vec4(dir, cfg.ao_tmax);
             }
+        } else {
+            memset(ao_buffer.rays() + ao_rays, 0, sizeof(Ray) * cfg.samples);
         }
+        ao_rays += cfg.samples;
 
-        if (dump_rays.length()) {
-            std::ofstream ray_output(dump_rays, std::ofstream::binary | std::ofstream::app);
-            for (int i = 0; i < ao_rays; i++) {
-                for (int k = 0; k < cfg.samples; k++) {
-                    ray_output.write((const char*)&ao_buffer.rays()[i * cfg.samples + k].org, sizeof(float) * 3);
-                    ray_output.write((const char*)&ao_buffer.rays()[i * cfg.samples + k].dir, sizeof(float) * 3);
+        if (ao_rays >= ao_buffer.size() || (ao_rays > 0 && cur_pixel == img_size - 1)) {
+            ao_buffer.traverse(occluded, nodes, tris, std::max(ao_rays, 64));
+
+            if(dump_rays.length()) {
+                for (int i = 0; i < ao_rays; i++) {
+                    rays_out.write((const char*)&ao_buffer.rays()[i].org, sizeof(float) * 3);
+                    rays_out.write((const char*)&ao_buffer.rays()[i].dir, sizeof(float) * 3);
                 }
             }
-        }
 
-        if (ao_rays > 0) {
-            // Get the intersection results
-            ao_buffer.traverse(occluded, nodes, tris);
+            for (int i = 0; i < ao_rays / cfg.samples; i++) {
+                const int p = first_pixel + i;
+                const int q = i * cfg.samples;
 
-            // Write the contribution to the image
-            #pragma omp parallel for
-            for (int j = 0; j < block_limit; j++) {
-                float color = 0.0f;
-
-                if(primary.hits()[i + j].tri_id >= 0) {
-                    int count = 0;
-                    for(int k = j * cfg.samples; k < (j + 1) * cfg.samples; k++) {
-                        if (ao_buffer.hits()[k].tri_id >= 0)
-                            count++;
-                    }
-                    color = 1.f - (count / (float)cfg.samples);
+                int count = 0;
+                for (int j = 0; j < cfg.samples; j++) {
+                    if (ao_buffer.hits()[q + j].tri_id >= 0)
+                        count++;
                 }
 
-                img[i + j] += color;
+                img[p] += 1.f - (count / (float)cfg.samples);
             }
+
+            first_pixel = cur_pixel + 1;
+            ao_rays = 0;
         }
     }
 }
@@ -365,7 +359,7 @@ int main(int argc, char** argv) {
 
     std::vector<float> image(cfg.width * cfg.height);
     RayBuffer primary(image.size());
-    RayBuffer ao_buffer(image.size() * 4);
+    RayBuffer ao_buffer(image.size() * cfg.samples);
 
     const bool gen_primary = rays_file.length() == 0;
 
