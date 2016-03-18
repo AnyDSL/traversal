@@ -105,11 +105,19 @@ float3 cosine_weighted_sample_hemisphere(float u1, float u2)
 {
     const float r = sqrt(u1);
     const float theta = 2 * M_PI * u2;
- 
+
     const float x = r * cos(theta);
     const float y = r * sin(theta);
- 
+
     return float3(x, y, sqrt(std::max(0.0f, 1 - u1)));
+}
+
+float3 sample_hemisphere(float u1, float u2)
+{
+    const float r = sqrt(1.0f - u1 * u1);
+    const float phi = 2 * M_PI * u2;
+
+    return float3(cos(phi) * r, sin(phi) * r, u1);
 }
 
 void gen_local_coords(const std::vector<int>& indices, const std::vector<float>& vertices, std::vector<float>& local_coords) {
@@ -209,14 +217,17 @@ void render_image(bool gen_primary,
                 const float u1 = dist(mt);
                 const float u2 = dist(mt);
 
-                const float3 s = cosine_weighted_sample_hemisphere(u1, u2);
+                const float3 s = sample_hemisphere(u1, u2);
                 const float3 dir = normalize(s.x * tangent + s.y * bitangent + s.z * normal);
 
                 ao_buffer.rays()[ao_rays + k].org = make_vec4(org, cfg.ao_offset);
                 ao_buffer.rays()[ao_rays + k].dir = make_vec4(dir, cfg.ao_tmax);
             }
         } else {
-            memset(ao_buffer.rays() + ao_rays, 0, sizeof(Ray) * cfg.samples);
+            for (int k = 0; k < cfg.samples; k++) {
+                ao_buffer.rays()[ao_rays + k].org = make_vec4(0, 0, 0, 1);
+                ao_buffer.rays()[ao_rays + k].dir = make_vec4(1, 1, 1, 0);
+            }
         }
         ao_rays += cfg.samples;
 
