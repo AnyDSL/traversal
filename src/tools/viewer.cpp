@@ -225,7 +225,7 @@ void render_image(bool gen_primary,
             }
         } else {
             for (int k = 0; k < cfg.samples; k++) {
-                ao_buffer.rays()[ao_rays + k].org = make_vec4(0, 0, 0, 1);
+                ao_buffer.rays()[ao_rays + k].org = make_vec4(1e9, 1e9, 1e9, 1e9);
                 ao_buffer.rays()[ao_rays + k].dir = make_vec4(1, 1, 1, 0);
             }
         }
