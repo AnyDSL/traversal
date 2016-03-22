@@ -21,9 +21,11 @@ int main(int argc, char** argv) {
     }
 
     int width, height;
+    bool normalize;
     ArgParser parser(argc, argv);
     parser.add_option<int>("width", "w", "Sets the image width", width, 1024, "pixels");
     parser.add_option<int>("height", "h", "Sets the image height", height, 1024, "pixels");
+    parser.add_option<bool>("normalize", "n", "Normalizes the resulting image.", normalize, false, "");
 
     if (!parser.parse()) {
         parser.usage();
@@ -50,7 +52,7 @@ int main(int argc, char** argv) {
     // Read fbuf file and convert it to an image
     std::vector<float> float_image(width * height);
     fbuf_file.read((char*)float_image.data(), width * height * sizeof(float));
-    const float tmax = *std::max_element(float_image.begin(), float_image.end());
+    const float tmax = normalize ? *std::max_element(float_image.begin(), float_image.end()) : 1.0f;
 
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png_ptr) {

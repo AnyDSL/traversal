@@ -68,6 +68,8 @@ set(TOOLS_COMMON_SRCS
 add_executable(fbuf2png tools/fbuf2png.cpp ${TOOLS_COMMON_SRCS})
 target_link_libraries(fbuf2png ${PNG_LIBRARIES})
 
+add_executable(fbufdiff tools/fbufdiff.cpp)
+
 add_executable(gen_primary tools/gen_primary.cpp ${TOOLS_COMMON_SRCS})
 add_executable(gen_random  tools/gen_random.cpp  ${TOOLS_COMMON_SRCS})
 add_executable(gen_shadow  tools/gen_shadow.cpp  ${TOOLS_COMMON_SRCS})
