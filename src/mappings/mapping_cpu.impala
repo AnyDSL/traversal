@@ -25,10 +25,10 @@ fn rcp_real(x: Real) -> Real {
     r * (real(2.0f) - x * r)
 }
 fn safe_rcp(x: Real) -> Real {
-    let sign_max = bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](real(flt_max)) | (bitcast[simd[i32 * 8]](x) & intr(0x80000000)));
+    let sign_max = bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](real(flt_max)) | (bitcast[simd[i32 * 8]](x) & intr(bitcast[i32](0x80000000u))));
     blendvps256(sign_max, rcp_real(x), not_eq(x, real(0.0f)))
 }
-fn prodsign_real(x: Real, y: Real) -> Real { bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](x) ^ (bitcast[simd[i32 * 8]](y) & intr(0x80000000))) }
+fn prodsign_real(x: Real, y: Real) -> Real { bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](x) ^ (bitcast[simd[i32 * 8]](y) & intr(bitcast[i32](0x80000000u)))) }
 
 // Use integer instructions for min/max
 fn min_real(a: Real, b: Real) -> Real { bitcast[simd[f32 * 8]](select[simd[bool * 8],simd[i32 * 8]](bitcast[simd[i32 * 8]](a) < bitcast[simd[i32 * 8]](b), bitcast[simd[i32 * 8]](a), bitcast[simd[i32 * 8]](b))) }
