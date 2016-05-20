@@ -1,0 +1,21 @@
+struct Transf {
+    c00: f32, c01: f32, c02: f32, c03: f32,
+    c10: f32, c11: f32, c12: f32, c13: f32,
+    c20: f32, c21: f32, c22: f32, c23: f32
+}
+
+fn transform_p(m: Transf, p: Vec3) -> Vec3 {
+    Vec3 {
+        x: p.x * real(m.c00) + p.y * real(m.c01) + p.z * real(m.c02) + real(m.c03),
+        y: p.x * real(m.c10) + p.y * real(m.c11) + p.z * real(m.c12) + real(m.c13),
+        z: p.x * real(m.c20) + p.y * real(m.c21) + p.z * real(m.c22) + real(m.c23)
+    }
+}
+
+fn transform_v(m: Transf, p: Vec3) -> Vec3 {
+    Vec3 {
+        x: p.x * real(m.c00) + p.y * real(m.c01) + p.z * real(m.c02),
+        y: p.x * real(m.c10) + p.y * real(m.c11) + p.z * real(m.c12),
+        z: p.x * real(m.c20) + p.y * real(m.c21) + p.z * real(m.c22)
+    }
+}

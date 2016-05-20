@@ -9,8 +9,8 @@ type HitFn = fn (Intr, Real, Real, Real) -> ();
 
 fn real(x: f32) -> Real { x }
 fn intr(x: i32) -> Intr { x }
+fn mask(x: bool) -> Mask { x }
 
-fn terminated(a: Intr) -> bool { a >= 0 }
 fn any(m: Mask) -> bool { m }
 fn all(m: Mask) -> bool { m }
 fn and(a: Mask, b: Mask) -> Mask { a & b }
@@ -141,8 +141,8 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
 
             @body(vec3(ray0(0), ray0(1), ray0(2)),
                   vec3(ray1(0), ray1(1), ray1(2)),
-                  ray0(3), ray1(3), |tri, t, u, v| {
-                *(&hits(id) as &simd[f32 * 4]) = simd[bitcast[f32](tri), t, u, v];
+                  ray0(3), ray1(3), |mask, inst, tri, t, u, v| {
+                *(&hits(id) as &simd[f32 * 4]) = simd[bitcast[f32](inst), bitcast[f32](tri), t, u];
             });
         })
     }
@@ -172,7 +172,8 @@ extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit
              iterate_children(nodes),
              iterate_triangles(nodes, tris),
              no_transparency,
-             ray_count, false)
+             no_instance,
+             ray_count, false, false)
 }
 
 extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
@@ -180,7 +181,8 @@ extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit]
              iterate_children(nodes),
              iterate_triangles(nodes, tris),
              no_transparency,
-             ray_count, true)
+             no_instance,
+             ray_count, false, true)
 }
 
 extern fn intersect_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
@@ -189,7 +191,8 @@ extern fn intersect_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits
              iterate_children(nodes),
              iterate_triangles(nodes, tris),
              transparency(indices, texcoords, masks, mask_buf),
-             ray_count, false)
+             no_instance,
+             ray_count, false, false)
 }
 
 extern fn occluded_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
@@ -198,5 +201,6 @@ extern fn occluded_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits:
              iterate_children(nodes),
              iterate_triangles(nodes, tris),
              transparency(indices, texcoords, masks, mask_buf),
-             ray_count, true)
+             no_instance,
+             ray_count, false, true)
 }

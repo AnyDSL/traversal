@@ -13,6 +13,7 @@ set(COMMON_SRCS
     common/stack.impala
     common/range.impala
     common/vector.impala
+    common/transform.impala
     common/transparency.impala
     common/traversal.impala)
 

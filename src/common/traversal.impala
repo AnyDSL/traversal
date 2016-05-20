@@ -16,72 +16,105 @@ struct Vec4 {
 }
 
 struct Hit {
+    inst_id: i32,
     tri_id: i32,
     tmax: f32,
     u: f32,
-    v: f32
 }
 
-type RecordHitFn = fn (Intr, Real, Real, Real) -> ();
+struct Inst {
+    transf: Transf,
+    id: i32
+}
+
+type RecordHitFn = fn (Mask, Intr, Intr, Real, Real, Real) -> ();
 type BoxHitFn = fn (Real, Real) -> ();
 
 type IterateRaysFn = fn (i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
 type IterateChildrenFn = fn (Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
 type IterateTrianglesFn = fn (Real, Stack, fn (Tri, Intr) -> ()) -> ();
 type TransparencyFn = fn (Mask, Intr, Real, Real) -> Mask;
+type InstanceFn = fn (Stack) -> Inst;
 
 fn no_transparency(mask: Mask, id: Intr, u: Real, v: Real) -> Mask { mask }
+fn no_instance(stack: Stack) -> Inst { let undef : Inst; undef }
 
 fn traverse(iterate_rays: IterateRaysFn,
             iterate_children: IterateChildrenFn,
             iterate_triangles: IterateTrianglesFn,
             transparency: TransparencyFn,
-            ray_count: i32, any: bool) -> () {
+            instance: InstanceFn,
+            ray_count: i32,
+            two_level: bool,
+            any_hit: bool) -> () {
     for org, dir, tmin, tmax, record_hit in iterate_rays(ray_count) {
         // Allocate a stack for the traversal
         let stack = allocate_stack();
-
-        // Initialize traversal variables
-        let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
-        let oidir = vec3_mul(idir, org);
-        let mut t = tmax;
-        let mut u = real(0.0f);
-        let mut v = real(0.0f);
-        let mut tri_id = intr(-1);
-
         stack.push_top(0, tmin);
 
-        // Traversal loop
-        while !stack.is_empty() {
-            let terminate = break;
+        fn traverse_ray(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, two_level: bool) -> () {
+            // Initialize traversal variables
+            let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
+            let oidir = vec3_mul(idir, org);
+            let mut t = tmax;
+            let mut u = real(0.0f);
+            let mut v = real(0.0f);
+            let mut tri_id = intr(-1);
+            let mut inst_id = intr(-1);
+            let mut hit_mask = mask(false);
 
-            // Intersect children and update stack
-            for box, hit in iterate_children(t, stack) {
-                intersect_ray_box(oidir, idir, tmin, t, box, hit);
-            }
+            // Traversal loop
+            while !stack.is_empty() {
+                let terminate = break;
 
-            // Intersect leaves
-            while is_leaf(stack.top()) {
-                for tri, id in iterate_triangles(t, stack) {
-                    intersect_ray_tri(org, dir, tmin, t, tri, |mut mask, t0, u0, v0| {
-                        mask = transparency(mask, id, u0, v0);
-
-                        t = select_real(mask, t0, t);
-                        u = select_real(mask, u0, u);
-                        v = select_real(mask, v0, v);
-                        tri_id = select_intr(mask, id, tri_id);
-
-                        if any && terminated(tri_id) {
-                            terminate()
-                        }
-                    });
+                // Intersect children and update stack
+                for box, hit in iterate_children(t, stack) {
+                    intersect_ray_box(oidir, idir, tmin, t, box, hit);
                 }
 
-                // Pop node from the stack
-                stack.pop();
+                // Intersect leaves
+                while is_leaf(stack.top()) @{
+                    if two_level {
+                        // This is a two-level transformation node
+                        let inst = instance(stack);
+                        let tdir = transform_v(inst.transf, dir);
+                        let torg = transform_p(inst.transf, org);
+                        let when_hit: RecordHitFn = |mask0, inst0, intr0, t0, u0, v0| -> () {
+                            inst_id = select_intr(mask0, inst0, inst_id);
+                            tri_id  = select_intr(mask0, intr0, tri_id);
+                            t = select_real(mask0, t0, t);
+                            u = select_real(mask0, u0, u);
+                            v = select_real(mask0, v0, v);
+                            hit_mask = and(mask0, hit_mask);
+                        };
+                        @traverse_ray(torg, tdir, tmin, t, when_hit, false);
+                    } else {
+                        // This is a normal BVH
+                        for tri, id in iterate_triangles(t, stack) {
+                            intersect_ray_tri(org, dir, tmin, t, tri, |mut mask0, t0, u0, v0| {
+                                mask0 = transparency(mask0, id, u0, v0);
+
+                                t = select_real(mask0, t0, t);
+                                u = select_real(mask0, u0, u);
+                                v = select_real(mask0, v0, v);
+                                tri_id = select_intr(mask0, id, tri_id);
+
+                                hit_mask = and(mask0, hit_mask);
+                                if any_hit && all(hit_mask) {
+                                    terminate()
+                                }
+                            });
+                        }
+                    }
+
+                    // Pop node from the stack
+                    stack.pop();
+                }
             }
+
+            record_hit(hit_mask, inst_id, tri_id, t, u, v);
         }
 
-        record_hit(tri_id, t, u, v);
+        @traverse_ray(org, dir, tmin, tmax, record_hit, two_level);
     }
 }
