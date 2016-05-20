@@ -27,7 +27,7 @@ struct Inst {
     id: i32
 }
 
-type RecordHitFn = fn (Mask, Intr, Intr, Real, Real, Real) -> ();
+type RecordHitFn = fn (Intr, Intr, Real, Real, Real) -> ();
 type BoxHitFn = fn (Real, Real) -> ();
 
 type IterateRaysFn = fn (i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
@@ -52,7 +52,7 @@ fn traverse(iterate_rays: IterateRaysFn,
         let stack = allocate_stack();
         stack.push_top(0, tmin);
 
-        fn traverse_ray(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, two_level: bool) -> () {
+        fn traverse_ray(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, two_level: bool) -> () @{
             // Initialize traversal variables
             let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
             let oidir = vec3_mul(idir, org);
@@ -61,10 +61,9 @@ fn traverse(iterate_rays: IterateRaysFn,
             let mut v = real(0.0f);
             let mut tri_id = intr(-1);
             let mut inst_id = intr(-1);
-            let mut hit_mask = mask(false);
 
             // Traversal loop
-            while !stack.is_empty() {
+            while !stack.is_empty() @{
                 let terminate = break;
 
                 // Intersect children and update stack
@@ -79,13 +78,13 @@ fn traverse(iterate_rays: IterateRaysFn,
                         let inst = instance(stack);
                         let tdir = transform_v(inst.transf, dir);
                         let torg = transform_p(inst.transf, org);
-                        let when_hit: RecordHitFn = |mask0, inst0, intr0, t0, u0, v0| -> () {
+                        let when_hit: RecordHitFn = |inst0, intr0, t0, u0, v0| -> () {
+                            let mask0 = terminated(intr0);
                             inst_id = select_intr(mask0, inst0, inst_id);
                             tri_id  = select_intr(mask0, intr0, tri_id);
                             t = select_real(mask0, t0, t);
                             u = select_real(mask0, u0, u);
                             v = select_real(mask0, v0, v);
-                            hit_mask = and(mask0, hit_mask);
                         };
                         @traverse_ray(torg, tdir, tmin, t, when_hit, false);
                     } else {
@@ -99,8 +98,7 @@ fn traverse(iterate_rays: IterateRaysFn,
                                 v = select_real(mask0, v0, v);
                                 tri_id = select_intr(mask0, id, tri_id);
 
-                                hit_mask = and(mask0, hit_mask);
-                                if any_hit && all(hit_mask) {
+                                if any_hit && all(terminated(tri_id)) {
                                     terminate()
                                 }
                             });
@@ -112,7 +110,7 @@ fn traverse(iterate_rays: IterateRaysFn,
                 }
             }
 
-            record_hit(hit_mask, inst_id, tri_id, t, u, v);
+            record_hit(inst_id, tri_id, t, u, v);
         }
 
         @traverse_ray(org, dir, tmin, tmax, record_hit, two_level);

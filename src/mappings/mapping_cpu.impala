@@ -10,6 +10,7 @@ fn real(x: f32) -> Real { simd[x, x, x, x, x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x, x, x, x, x] }
 fn mask(x: bool) -> Mask { let f = bitcast[f32](if x { 0xFFFFFFFFu } else { 0u }); real(f) }
 
+fn terminated(a: Intr) -> Mask { bitcast[simd[f32 * 8]](a) }
 fn any(m: Mask) -> bool { movmskps256(m) != 0 }
 fn all(m: Mask) -> bool { movmskps256(m) == 0xFF }
 fn and(a: Mask, b: Mask) -> Mask { bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](a) & bitcast[simd[i32 * 8]](b)) }
@@ -125,7 +126,7 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
                 let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w, rays(i + 4).org.w, rays(i + 5).org.w, rays(i + 6).org.w, rays(i + 7).org.w];
                 let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w, rays(i + 4).dir.w, rays(i + 5).dir.w, rays(i + 6).dir.w, rays(i + 7).dir.w];
 
-                body(org, dir, tmin, tmax, |mask, inst, tri, t, u, v| {
+                body(org, dir, tmin, tmax, |inst, tri, t, u, v| {
                     for j in @unroll(0, vector_size) {
                         hits(i + j).inst_id = inst(j);
                         hits(i + j).tri_id = tri(j);
