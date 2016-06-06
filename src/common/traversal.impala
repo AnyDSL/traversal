@@ -37,7 +37,7 @@ type TransparencyFn = fn (Mask, Intr, Real, Real) -> Mask;
 type InstanceFn = fn (Stack) -> Inst;
 
 fn no_transparency(mask: Mask, id: Intr, u: Real, v: Real) -> Mask { mask }
-fn no_instance(stack: Stack) -> Inst { let undef : Inst; undef }
+fn no_instance(stack: Stack) -> Inst { let mut undef : Inst; undef }
 
 fn traverse(iterate_rays: IterateRaysFn,
             iterate_children: IterateChildrenFn,
