@@ -124,14 +124,24 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
 
         for j in $parallel(0, 0, ray_count / vector_size) {
             for i in range_step(j * vector_size, (j + 1) * vector_size, vector_size) @{
-                let org = vec3(simd[rays(i + 0).org.x, rays(i + 1).org.x, rays(i + 2).org.x, rays(i + 3).org.x, rays(i + 4).org.x, rays(i + 5).org.x, rays(i + 6).org.x, rays(i + 7).org.x],
-                               simd[rays(i + 0).org.y, rays(i + 1).org.y, rays(i + 2).org.y, rays(i + 3).org.y, rays(i + 4).org.y, rays(i + 5).org.y, rays(i + 6).org.y, rays(i + 7).org.y],
-                               simd[rays(i + 0).org.z, rays(i + 1).org.z, rays(i + 2).org.z, rays(i + 3).org.z, rays(i + 4).org.z, rays(i + 5).org.z, rays(i + 6).org.z, rays(i + 7).org.z]);
-                let dir = vec3(simd[rays(i + 0).dir.x, rays(i + 1).dir.x, rays(i + 2).dir.x, rays(i + 3).dir.x, rays(i + 4).dir.x, rays(i + 5).dir.x, rays(i + 6).dir.x, rays(i + 7).dir.x],
-                               simd[rays(i + 0).dir.y, rays(i + 1).dir.y, rays(i + 2).dir.y, rays(i + 3).dir.y, rays(i + 4).dir.y, rays(i + 5).dir.y, rays(i + 6).dir.y, rays(i + 7).dir.y],
-                               simd[rays(i + 0).dir.z, rays(i + 1).dir.z, rays(i + 2).dir.z, rays(i + 3).dir.z, rays(i + 4).dir.z, rays(i + 5).dir.z, rays(i + 6).dir.z, rays(i + 7).dir.z]);
-                let tmin = simd[rays(i + 0).org.w, rays(i + 1).org.w, rays(i + 2).org.w, rays(i + 3).org.w, rays(i + 4).org.w, rays(i + 5).org.w, rays(i + 6).org.w, rays(i + 7).org.w];
-                let tmax = simd[rays(i + 0).dir.w, rays(i + 1).dir.w, rays(i + 2).dir.w, rays(i + 3).dir.w, rays(i + 4).dir.w, rays(i + 5).dir.w, rays(i + 6).dir.w, rays(i + 7).dir.w];
+                let mut org: Vec3;
+                let mut dir: Vec3;
+                let mut tmin: Real;
+                let mut tmax: Real;
+
+                for k in @range(0, vector_size) {
+                    org.x(k) = rays(i + k).org.x;
+                    org.y(k) = rays(i + k).org.y;
+                    org.z(k) = rays(i + k).org.z;
+
+                    tmin(k) = rays(i + k).org.w;
+
+                    dir.x(k) = rays(i + k).dir.x;
+                    dir.y(k) = rays(i + k).dir.y;
+                    dir.z(k) = rays(i + k).dir.z;
+                   
+                    tmax(k) = rays(i + k).dir.w;
+                }
 
                 body(org, dir, tmin, tmax, |inst, tri, t, u, v| {
                     for j in @unroll(0, vector_size) {
@@ -198,6 +208,7 @@ extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit
         transparency: no_transparency(),
         any_hit: false
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
@@ -209,6 +220,7 @@ extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit]
         transparency: no_transparency(),
         any_hit: true
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
@@ -221,6 +233,7 @@ extern fn intersect_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits
         transparency: transparency(indices, texcoords, masks, mask_buf),
         any_hit: false
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
@@ -233,6 +246,7 @@ extern fn occluded_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits:
         transparency: transparency(indices, texcoords, masks, mask_buf),
         any_hit: true
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
