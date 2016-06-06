@@ -175,6 +175,7 @@ extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit
         transparency: no_transparency(),
         any_hit: false
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
@@ -186,6 +187,7 @@ extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit]
         transparency: no_transparency(),
         any_hit: true
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
@@ -198,6 +200,7 @@ extern fn intersect_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits
         transparency: transparency(indices, texcoords, masks, mask_buf),
         any_hit: false
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
@@ -210,5 +213,6 @@ extern fn occluded_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits:
         transparency: transparency(indices, texcoords, masks, mask_buf),
         any_hit: true
     };
+
     traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
