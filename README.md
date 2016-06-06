@@ -1,6 +1,6 @@
 # Traversal #
 
-This is the main repository for the impala traversal code.
+This is the main repository for the AnyDSL traversal code.
 
 ### Building ###
 
