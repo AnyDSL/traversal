@@ -167,41 +167,48 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
         }
     }
 }
-
 extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    traverse(iterate_rays(rays, hits),
-             iterate_children(nodes),
-             iterate_triangles(nodes, tris),
-             no_transparency,
-             no_instance,
-             ray_count, false, false)
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: no_transparency(),
+        any_hit: false
+    };
+    traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
 extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
-    traverse(iterate_rays(rays, hits),
-             iterate_children(nodes),
-             iterate_triangles(nodes, tris),
-             no_transparency,
-             no_instance,
-             ray_count, false, true)
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: no_transparency(),
+        any_hit: true
+    };
+    traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn intersect_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+extern fn intersect_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
                                indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
-    traverse(iterate_rays(rays, hits),
-             iterate_children(nodes),
-             iterate_triangles(nodes, tris),
-             transparency(indices, texcoords, masks, mask_buf),
-             no_instance,
-             ray_count, false, false)
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
+        any_hit: false
+    };
+    traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn occluded_masked_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+extern fn occluded_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
                               indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
-    traverse(iterate_rays(rays, hits),
-             iterate_children(nodes),
-             iterate_triangles(nodes, tris),
-             transparency(indices, texcoords, masks, mask_buf),
-             no_instance,
-             ray_count, false, true)
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
+        any_hit: true
+    };
+    traverse_rays(iterate_rays(rays, hits), ray_count, config);
 }
