@@ -139,7 +139,7 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
                     dir.x(k) = rays(i + k).dir.x;
                     dir.y(k) = rays(i + k).dir.y;
                     dir.z(k) = rays(i + k).dir.z;
-                   
+
                     tmax(k) = rays(i + k).dir.w;
                 }
 
@@ -183,7 +183,7 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
 
 fn iterate_instances(mut nodes: &[Node], config: TraversalConfig) -> IterateInstancesFn {
     |t, stack, body| {
-        let node = &nodes(stack.top()) as &InstanceNode;
+        let node = &nodes(!stack.top()) as &InstanceNode;
         let tmin = stack.tmin();
 
         stack.set_top(node.next, tmin);
