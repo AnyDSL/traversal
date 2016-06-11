@@ -189,7 +189,10 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
             let inst_node = instances(inst_id);
             let tmin = stack.tmin();
 
-            stack.set_top(inst_node.next, tmin);
+            // Push an additional sentinel on the stack.
+            // Simulates a new empty stack for the recursive call.
+            stack.push_top(0x76543210u32 as i32, real(flt_max));
+            stack.push_top(inst_node.next, tmin);
             let inst = Inst {
                 transf: inst_node.transf,
                 id:     inst_node.id
@@ -200,6 +203,8 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
             };
 
             body(inst, traverse_inst);
+
+            stack.pop(); // pops the second sentinel
 
             // Sentinel value in padding marks the last instance that belongs to the leaf.
             if inst_node.pad(0) == 0x00ABABAB {
