@@ -1,6 +1,7 @@
 struct Stack {
     push: fn (i32, Real) -> (),
     push_top: fn (i32, Real) -> (),
+    set_sentinel: fn () -> (),
     set_top: fn (i32, Real) -> (),
     pop: fn () -> (),
     top: fn () -> i32,
@@ -30,6 +31,10 @@ fn allocate_stack() -> Stack {
             tmin_stack(id) = tmin;
             top = n;
             tmin = t;
+        },
+        set_sentinel: || {
+            top = sentinel as i32;
+            tmin = real(flt_max);
         },
         set_top: |n, t| {
             top = n;

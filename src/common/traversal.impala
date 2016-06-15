@@ -101,7 +101,6 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
                 });
             }
 
-            // Pop node from the stack
             stack.pop();
         }
     }
