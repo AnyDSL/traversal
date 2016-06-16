@@ -112,7 +112,7 @@ fn traverse_rays(iterate_rays: IterateRaysFn, ray_count: i32, config: TraversalC
     for org, dir, tmin, tmax, record_hit in iterate_rays(ray_count) {
         // Allocate a stack for the traversal
         let stack = allocate_stack();
-        stack.push_top(0, tmin);
+        stack.push(0, tmin);
         @traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
     }
 }

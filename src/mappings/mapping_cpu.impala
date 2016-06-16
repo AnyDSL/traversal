@@ -108,9 +108,9 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
                 let t = select_real(greater_eq(t1, t0), t0, real(flt_max));
                 if any(greater_eq(t1, t0)) {
                     if any(greater(stack.tmin(), t)) {
-                        stack.push_top(node.children(i), t)
-                    } else {
                         stack.push(node.children(i), t)
+                    } else {
+                        stack.push_under(node.children(i), t)
                     }
                 }
             });
@@ -192,7 +192,8 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
         while true {
             let inst_node = instances(inst_id);
 
-            stack.push_top(inst_node.next, tmin);
+            stack.push(inst_node.next, tmin);
+            let ptr = stack.pointer();
             let inst = Inst {
                 transf: inst_node.transf,
                 id:     inst_node.id
@@ -204,7 +205,7 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
 
             body(inst, traverse_inst);
 
-            while !stack.is_empty() { stack.pop() }
+            stack.set_pointer(ptr);
 
             // Sentinel value in padding marks the last instance that belongs to the leaf.
             if inst_node.pad(0) == 0x00ABABAB {

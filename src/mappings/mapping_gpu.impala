@@ -28,14 +28,10 @@ fn safe_rcp(x: Real) -> Real { if x == 0.0f { copysignf(flt_max, x) } else { rcp
 
 fn min_real(a: Real, b: Real) -> Real { fminf(a, b) }
 fn max_real(a: Real, b: Real) -> Real { fmaxf(a, b) }
-/*fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](minmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
+fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](minmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](maxmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 fn minmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](minmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](maxmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }*/
-fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
-fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
-fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
+fn maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](maxmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 
 struct BBox {
     lo_x: f32, hi_x: f32,
@@ -104,7 +100,8 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
         while true {
             let inst_node = instances(inst_id);
 
-            stack.push_top(inst_node.next, tmin);
+            stack.push(inst_node.next, tmin);
+            let ptr = stack.pointer();
             let inst = Inst {
                 transf: inst_node.transf,
                 id:     inst_node.id
@@ -116,7 +113,7 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
 
             body(inst, traverse_inst);
 
-            while !stack.is_empty() { stack.pop() }
+            stack.set_pointer(ptr);
 
             // Sentinel value in padding marks the last instance that belongs to the leaf.
             if inst_node.pad(0) == 0x00ABABAB {
@@ -159,7 +156,7 @@ fn iterate_children(mut nodes: &[Node]) -> IterateChildrenFn {
                             children(0) = children(1);
                             children(1) = children0;
                         }
-                        stack.push(children(0), 0.0f);
+                        stack.push_under(children(0), 0.0f);
                         stack.set_top(children(1), 0.0f);
                     } else {
                         stack.set_top(if hit0 { children(0) } else { children(1) }, 0.0f)
