@@ -10,7 +10,7 @@ fn real(x: f32) -> Real { simd[x, x, x, x, x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x, x, x, x, x] }
 fn mask(x: bool) -> Mask { let f = bitcast[f32](if x { 0xFFFFFFFFu } else { 0u }); real(f) }
 
-fn terminated(a: Intr) -> Mask { bitcast[simd[f32 * 8]](a) }
+fn terminated(a: Intr) -> Mask { bitcast[simd[f32 * 8]](a ^ intr(bitcast[i32](0x80000000u))) }
 fn any(m: Mask) -> bool { movmskps256(m) != 0 }
 fn all(m: Mask) -> bool { movmskps256(m) == 0xFF }
 fn and(a: Mask, b: Mask) -> Mask { bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](a) & bitcast[simd[i32 * 8]](b)) }
@@ -184,17 +184,15 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
 fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: TraversalConfig) -> IterateInstancesFn {
     |t, stack, body| {
         let mut inst_id = !stack.top();
-
         let tmin = stack.tmin();
+
+        // Push an additional sentinel on the stack.
+        // Simulates a new empty stack for the recursive call.
         stack.set_sentinel();
         while true {
             let inst_node = instances(inst_id);
 
-
-            // Push an additional sentinel on the stack.
-            // Simulates a new empty stack for the recursive call.
             stack.push_top(inst_node.next, tmin);
-
             let inst = Inst {
                 transf: inst_node.transf,
                 id:     inst_node.id
@@ -205,6 +203,8 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
             };
 
             body(inst, traverse_inst);
+
+            while !stack.is_empty() { stack.pop() }
 
             // Sentinel value in padding marks the last instance that belongs to the leaf.
             if inst_node.pad(0) == 0x00ABABAB {

@@ -76,11 +76,11 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
                 let torg = transform_p(inst.transf, org);
                 let when_hit: RecordHitFn = |inst0, intr0, t0, u0, v0| -> () {
                     let mask0 = terminated(intr0);
-                    inst_id = select_intr(mask0, inst_id, intr(inst.id));
-                    tri_id  = select_intr(mask0, tri_id, intr0);
-                    t = select_real(mask0, t, t0);
-                    u = select_real(mask0, u, u0);
-                    v = select_real(mask0, v, v0);
+                    inst_id = select_intr(mask0, intr(inst.id), inst_id);
+                    tri_id  = select_intr(mask0, intr0, tri_id);
+                    t = select_real(mask0, t0, t);
+                    u = select_real(mask0, u0, u);
+                    v = select_real(mask0, v0, v);
                 };
                 traverse_instance(torg, tdir, tmin, t, when_hit);
             }
