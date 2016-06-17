@@ -28,14 +28,10 @@ fn safe_rcp(x: Real) -> Real { if x == 0.0f { copysignf(flt_max, x) } else { rcp
 
 fn min_real(a: Real, b: Real) -> Real { fminf(a, b) }
 fn max_real(a: Real, b: Real) -> Real { fmaxf(a, b) }
-/*fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](minmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
+fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](minmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](maxmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 fn minmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](minmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](maxmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }*/
-fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
-fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
-fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
+fn maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](maxmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 
 struct BBox {
     lo_x: f32, hi_x: f32,
@@ -50,13 +46,6 @@ struct Node {
     right: i32,
     pad0: i32,
     pad1: i32
-}
-
-struct InstanceNode {
-    transf: Transf,
-    id: i32,
-    next: i32,
-    pad: [i32 * 2]
 }
 
 fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
@@ -89,41 +78,6 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
             }
 
             loop_id += 3;
-        }
-    }
-}
-
-fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: TraversalConfig) -> IterateInstancesFn {
-    |t, stack, body| {
-        let mut inst_id = !stack.top();
-        let tmin = stack.tmin();
-
-        // Push an additional sentinel on the stack.
-        // Simulates a new empty stack for the recursive call.
-        stack.set_sentinel();
-        while true {
-            let inst_node = instances(inst_id);
-
-            stack.push_top(inst_node.next, tmin);
-            let inst = Inst {
-                transf: inst_node.transf,
-                id:     inst_node.id
-            };
-
-            fn traverse_inst(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn) -> () {
-                traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
-            };
-
-            body(inst, traverse_inst);
-
-            while !stack.is_empty() { stack.pop() }
-
-            // Sentinel value in padding marks the last instance that belongs to the leaf.
-            if inst_node.pad(0) == 0x00ABABAB {
-                break()
-            }
-
-            inst_id += 1;
         }
     }
 }
@@ -196,7 +150,7 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
 }
 
 fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
-    |mask, tri_id, u, v| {
+    |mask, tri_id, u, v, inst_id| {
         if mask {
             let tri = *(&indices(tri_id * 4) as &simd[i32 * 4]);
             let uv0 = texcoords(tri(0));
@@ -213,6 +167,29 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
         }
     }
 }
+
+fn transparency_instanced(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], instances: &[InstanceNode]) -> TransparencyFn {
+    |mask, tri_id, u, v, inst_id| {
+        if mask {
+            let index_offset = instances(inst_id).index_offset;
+            let tex_offset   = instances(inst_id).tex_offset;
+
+            let tri = *(&indices((tri_id + index_offset) * 4) as &simd[i32 * 4]);
+            let uv0 = texcoords(tri(0) + tex_offset);
+            let uv1 = texcoords(tri(1) + tex_offset);
+            let uv2 = texcoords(tri(2) + tex_offset);
+
+            let w = 1.0f - u - v;
+            let tu = uv0.x * w + uv1.x * u + uv2.x * v;
+            let tv = uv0.y * w + uv1.y * u + uv2.y * v;
+
+            lookup_mask(masks(tri(3)), mask_buf, tu, tv)
+        } else {
+            false
+        }
+    }
+}
+
 extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
@@ -309,7 +286,7 @@ extern fn intersect_gpu_masked_instanced(nodes: &[Node], instances: &[InstanceNo
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
         iterate_instances: no_instance(),
-        transparency: transparency(indices, texcoords, masks, mask_buf),
+        transparency: transparency_instanced(indices, texcoords, masks, mask_buf, instances),
         any_hit: false
     };
 
@@ -330,7 +307,7 @@ extern fn occluded_gpu_masked_instanced(nodes: &[Node], instances: &[InstanceNod
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
         iterate_instances: no_instance(),
-        transparency: transparency(indices, texcoords, masks, mask_buf),
+        transparency: transparency_instanced(indices, texcoords, masks, mask_buf, instances),
         any_hit: true
     };
 

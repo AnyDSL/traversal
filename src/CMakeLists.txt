@@ -15,6 +15,7 @@ set(COMMON_SRCS
     common/vector.impala
     common/transform.impala
     common/transparency.impala
+    common/instancing.impala
     common/traversal.impala)
 
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")

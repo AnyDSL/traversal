@@ -1,0 +1,42 @@
+struct InstanceNode {
+    transf: Transf,
+    id: i32,
+    next: i32,
+    index_offset: i32,
+    tex_offset: i32
+}
+
+fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: TraversalConfig) -> IterateInstancesFn {
+    |t, stack, body| {
+        let mut inst_id = !stack.top();
+        let tmin = stack.tmin();
+
+        // Push an additional sentinel on the stack.
+        // Simulates a new empty stack for the recursive call.
+        stack.set_sentinel();
+        while true {
+            let inst_node = instances(inst_id);
+
+            // Sentinel value marks the end of the instances array.
+            if inst_node.id == -1 {
+                break()
+            }
+
+            stack.push_top(inst_node.next, tmin);
+            let inst = Inst {
+                transf: inst_node.transf,
+                id:     inst_node.id
+            };
+
+            fn traverse_inst(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn) -> () {
+                traverse_ray(stack, org, dir, tmin, tmax, record_hit, config, inst_node.id);
+            };
+
+            body(inst, traverse_inst);
+
+            while !stack.is_empty() { stack.pop() }
+
+            inst_id += 1;
+        }
+    }
+}

@@ -35,11 +35,11 @@ type IterateRaysFn = fn (i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) ->
 type IterateChildrenFn = fn (Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
 type IterateTrianglesFn = fn (Real, Stack, fn (Tri, Intr) -> ()) -> ();
 type IterateInstancesFn = fn (Real, Stack, fn(Inst, TraverseInstanceFn) -> ()) -> ();
-type TransparencyFn = fn (Mask, Intr, Real, Real) -> Mask;
+type TransparencyFn = fn (Mask, Intr, Real, Real, i32) -> Mask;
 
 fn no_triangle() -> IterateTrianglesFn { |t, stack, body| {} }
 fn no_instance() -> IterateInstancesFn { |t, stack, body| {} }
-fn no_transparency() -> TransparencyFn { |mask, id, u, v| { mask } }
+fn no_transparency() -> TransparencyFn { |mask, id, u, v, inst_id| { mask } }
 
 struct TraversalConfig {
     iterate_children: IterateChildrenFn,
@@ -49,7 +49,7 @@ struct TraversalConfig {
     any_hit: bool
 }
 
-fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, config: TraversalConfig) -> () @{
+fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, config: TraversalConfig, cur_inst: i32) -> () @{
     // Initialize traversal variables
     let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
     let oidir = vec3_mul(idir, org);
@@ -88,7 +88,7 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
             // The leaf may contain a list of triangles
             for tri, id in config.iterate_triangles(t, stack) {
                 intersect_ray_tri(org, dir, tmin, t, tri, |mut mask0, t0, u0, v0| {
-                    mask0 = config.transparency(mask0, id, u0, v0);
+                    mask0 = config.transparency(mask0, id, u0, v0, cur_inst);
 
                     t = select_real(mask0, t0, t);
                     u = select_real(mask0, u0, u);
@@ -113,6 +113,6 @@ fn traverse_rays(iterate_rays: IterateRaysFn, ray_count: i32, config: TraversalC
         // Allocate a stack for the traversal
         let stack = allocate_stack();
         stack.push_top(0, tmin);
-        @traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
+        @traverse_ray(stack, org, dir, tmin, tmax, record_hit, config, -1);
     }
 }

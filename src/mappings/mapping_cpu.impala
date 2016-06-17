@@ -45,13 +45,6 @@ struct Node {
     children: [i32 * 4]
 }
 
-struct InstanceNode {
-    transf: Transf,
-    id: i32,
-    next: i32,
-    pad: [i32 * 2]
-}
-
 fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
     |t, stack, body, return| {
         // Cull this leaf if it is too far away
@@ -156,8 +149,35 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
     }
 }
 
+fn transparency_instanced(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], instances: &[InstanceNode]) -> TransparencyFn {
+    |mask, tri_id, u, v, inst_id| {
+        let mut bit_mask = movmskps256(mask);
+        let mut transp = bitcast[simd[i32 * 8]](mask);
+        let w = real(1.0f) - u - v;
+        let index_offset = instances(inst_id).index_offset;
+        let tex_offset   = instances(inst_id).tex_offset;
+        for i in @unroll(0, vector_size) {
+            if (bit_mask & 1) != 0 {
+                let tri = *(&indices((tri_id(i) + index_offset) * 4) as &simd[i32 * 4]);
+                let uv0 = texcoords(tri(0) + tex_offset);
+                let uv1 = texcoords(tri(1) + tex_offset);
+                let uv2 = texcoords(tri(2) + tex_offset);
+
+                let tu = uv0.x * w(i) + uv1.x * u(i) + uv2.x * v(i);
+                let tv = uv0.y * w(i) + uv1.y * u(i) + uv2.y * v(i);
+
+                let m = $lookup_mask(masks(tri(3)), mask_buf, tu, tv);
+
+                transp(i) = if m { -1 } else { 0 }
+            }
+            bit_mask = bit_mask >> 1;
+        }
+        bitcast[simd[f32 * 8]](transp)
+    }
+}
+
 fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
-    |mask, tri_id, u, v| {
+    |mask, tri_id, u, v, inst_id| {
         let mut bit_mask = movmskps256(mask);
         let mut transp = bitcast[simd[i32 * 8]](mask);
         let w = real(1.0f) - u - v;
@@ -178,41 +198,6 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
             bit_mask = bit_mask >> 1;
         }
         bitcast[simd[f32 * 8]](transp)
-    }
-}
-
-fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: TraversalConfig) -> IterateInstancesFn {
-    |t, stack, body| {
-        let mut inst_id = !stack.top();
-        let tmin = stack.tmin();
-
-        // Push an additional sentinel on the stack.
-        // Simulates a new empty stack for the recursive call.
-        stack.set_sentinel();
-        while true {
-            let inst_node = instances(inst_id);
-
-            stack.push_top(inst_node.next, tmin);
-            let inst = Inst {
-                transf: inst_node.transf,
-                id:     inst_node.id
-            };
-
-            fn traverse_inst(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn) -> () {
-                traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
-            };
-
-            body(inst, traverse_inst);
-
-            while !stack.is_empty() { stack.pop() }
-
-            // Sentinel value in padding marks the last instance that belongs to the leaf.
-            if inst_node.pad(0) == 0x00ABABAB {
-                break()
-            }
-
-            inst_id += 1;
-        }
     }
 }
 
@@ -312,7 +297,7 @@ extern fn intersect_cpu_masked_instanced(nodes: &[Node], instances: &[InstanceNo
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
         iterate_instances: no_instance(),
-        transparency: transparency(indices, texcoords, masks, mask_buf),
+        transparency: transparency_instanced(indices, texcoords, masks, mask_buf, instances),
         any_hit: false
     };
 
@@ -333,7 +318,7 @@ extern fn occluded_cpu_masked_instanced(nodes: &[Node], instances: &[InstanceNod
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
         iterate_instances: no_instance(),
-        transparency: transparency(indices, texcoords, masks, mask_buf),
+        transparency: transparency_instanced(indices, texcoords, masks, mask_buf, instances),
         any_hit: true
     };
 
