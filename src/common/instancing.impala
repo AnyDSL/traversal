@@ -30,7 +30,7 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
             };
 
             fn traverse_inst(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn) -> () {
-                traverse_ray(stack, org, dir, tmin, tmax, record_hit, config, inst_node.id);
+                traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
             };
 
             body(inst, traverse_inst);

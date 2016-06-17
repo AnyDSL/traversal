@@ -150,34 +150,12 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
 }
 
 fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
-    |mask, tri_id, u, v, inst_id| {
+    |mask, tri_id, u, v| {
         if mask {
             let tri = *(&indices(tri_id * 4) as &simd[i32 * 4]);
             let uv0 = texcoords(tri(0));
             let uv1 = texcoords(tri(1));
             let uv2 = texcoords(tri(2));
-
-            let w = 1.0f - u - v;
-            let tu = uv0.x * w + uv1.x * u + uv2.x * v;
-            let tv = uv0.y * w + uv1.y * u + uv2.y * v;
-
-            lookup_mask(masks(tri(3)), mask_buf, tu, tv)
-        } else {
-            false
-        }
-    }
-}
-
-fn transparency_instanced(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], instances: &[InstanceNode]) -> TransparencyFn {
-    |mask, tri_id, u, v, inst_id| {
-        if mask {
-            let index_offset = instances(inst_id).index_offset;
-            let tex_offset   = instances(inst_id).tex_offset;
-
-            let tri = *(&indices(tri_id * 4 + index_offset) as &simd[i32 * 4]);
-            let uv0 = texcoords(tri(0) + tex_offset);
-            let uv1 = texcoords(tri(1) + tex_offset);
-            let uv2 = texcoords(tri(2) + tex_offset);
 
             let w = 1.0f - u - v;
             let tu = uv0.x * w + uv1.x * u + uv2.x * v;
@@ -286,7 +264,7 @@ extern fn intersect_gpu_masked_instanced(nodes: &[Node], instances: &[InstanceNo
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
         iterate_instances: no_instance(),
-        transparency: transparency_instanced(indices, texcoords, masks, mask_buf, instances),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
         any_hit: false
     };
 
@@ -307,7 +285,7 @@ extern fn occluded_gpu_masked_instanced(nodes: &[Node], instances: &[InstanceNod
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
         iterate_instances: no_instance(),
-        transparency: transparency_instanced(indices, texcoords, masks, mask_buf, instances),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
         any_hit: true
     };
 
