@@ -2,8 +2,7 @@ struct InstanceNode {
     transf: Transf,
     id: i32,
     next: i32,
-    index_offset: i32,
-    tex_offset: i32
+    pad: [i32 * 2]
 }
 
 fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: TraversalConfig) -> IterateInstancesFn {
@@ -16,11 +15,6 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
         stack.set_sentinel();
         while true {
             let inst_node = instances(inst_id);
-
-            // Sentinel value marks the end of the instances array.
-            if inst_node.id == -1 {
-                break()
-            }
 
             stack.push(inst_node.next, tmin);
             let ptr = stack.pointer();
@@ -36,6 +30,11 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
             body(inst, traverse_inst);
 
             stack.set_pointer(ptr);
+
+            // Sentinel value marks the last element of the instances array.
+            if inst_node.pad(0) == -1 {
+                break()
+            }
 
             inst_id += 1;
         }
