@@ -113,7 +113,7 @@ fn iterate_children(mut nodes: &[Node]) -> IterateChildrenFn {
                             children(0) = children(1);
                             children(1) = children0;
                         }
-                        stack.push(children(0), 0.0f);
+                        stack.push_under(children(0), 0.0f);
                         stack.set_top(children(1), 0.0f);
                     } else {
                         stack.set_top(if hit0 { children(0) } else { children(1) }, 0.0f)

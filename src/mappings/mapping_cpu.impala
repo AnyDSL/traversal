@@ -101,9 +101,9 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
                 let t = select_real(greater_eq(t1, t0), t0, real(flt_max));
                 if any(greater_eq(t1, t0)) {
                     if any(greater(stack.tmin(), t)) {
-                        stack.push_top(node.children(i), t)
-                    } else {
                         stack.push(node.children(i), t)
+                    } else {
+                        stack.push_under(node.children(i), t)
                     }
                 }
             });

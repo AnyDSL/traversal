@@ -22,7 +22,8 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
                 break()
             }
 
-            stack.push_top(inst_node.next, tmin);
+            stack.push(inst_node.next, tmin);
+            let ptr = stack.pointer();
             let inst = Inst {
                 transf: inst_node.transf,
                 id:     inst_node.id
@@ -34,7 +35,7 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
 
             body(inst, traverse_inst);
 
-            while !stack.is_empty() { stack.pop() }
+            stack.set_pointer(ptr);
 
             inst_id += 1;
         }
