@@ -158,7 +158,7 @@ fn transparency_instanced(mut indices: &[i32], texcoords: &[Vec2], masks: &[Tran
         let tex_offset   = instances(inst_id).tex_offset;
         for i in @unroll(0, vector_size) {
             if (bit_mask & 1) != 0 {
-                let tri = *(&indices((tri_id(i) + index_offset) * 4) as &simd[i32 * 4]);
+                let tri = *(&indices(tri_id(i) * 4 + index_offset) as &simd[i32 * 4]);
                 let uv0 = texcoords(tri(0) + tex_offset);
                 let uv1 = texcoords(tri(1) + tex_offset);
                 let uv2 = texcoords(tri(2) + tex_offset);
