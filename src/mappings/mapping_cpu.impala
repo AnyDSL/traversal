@@ -90,7 +90,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
         if all(greater_eq(tmin, t)) { return() }
 
         for i in @unroll(0, 4) {
-            if node.children(i) == 0 { break() }
+            if node.children(i) == -1 { break() }
 
             let box = Box {
                 min: || { vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i))) },
@@ -183,7 +183,7 @@ extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit
         any_hit: false
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, config);
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
 extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
@@ -195,7 +195,7 @@ extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit]
         any_hit: true
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, config);
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
 extern fn intersect_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
@@ -208,7 +208,7 @@ extern fn intersect_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits
         any_hit: false
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, config);
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
 extern fn occluded_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
@@ -221,10 +221,10 @@ extern fn occluded_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits:
         any_hit: true
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, config);
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn intersect_cpu_instanced(nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn intersect_cpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -241,10 +241,10 @@ extern fn intersect_cpu_instanced(nodes: &[Node], instances: &[InstanceNode], tr
         any_hit: false
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, top_config);
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }
 
-extern fn occluded_cpu_instanced(nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn occluded_cpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -261,10 +261,10 @@ extern fn occluded_cpu_instanced(nodes: &[Node], instances: &[InstanceNode], tri
         any_hit: true
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, top_config);
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }
 
-extern fn intersect_cpu_masked_instanced(nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+extern fn intersect_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
                                          indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
@@ -282,10 +282,10 @@ extern fn intersect_cpu_masked_instanced(nodes: &[Node], instances: &[InstanceNo
         any_hit: false
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, top_config);
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }
 
-extern fn occluded_cpu_masked_instanced(nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+extern fn occluded_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
                               indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
@@ -303,5 +303,5 @@ extern fn occluded_cpu_masked_instanced(nodes: &[Node], instances: &[InstanceNod
         any_hit: true
     };
 
-    traverse_rays(iterate_rays(rays, hits), ray_count, top_config);
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }

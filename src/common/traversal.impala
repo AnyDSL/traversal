@@ -108,11 +108,11 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
     record_hit(inst_id, tri_id, t, u, v);
 }
 
-fn traverse_rays(iterate_rays: IterateRaysFn, ray_count: i32, config: TraversalConfig) -> () {
+fn traverse_rays(root: i32, iterate_rays: IterateRaysFn, ray_count: i32, config: TraversalConfig) -> () {
     for org, dir, tmin, tmax, record_hit in iterate_rays(ray_count) {
         // Allocate a stack for the traversal
         let stack = allocate_stack();
-        stack.push(0, tmin);
+        stack.push(root, tmin);
         @traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
     }
 }
