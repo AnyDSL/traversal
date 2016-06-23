@@ -90,7 +90,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
         if all(greater_eq(tmin, t)) { return() }
 
         for i in @unroll(0, 4) {
-            if node.children(i) == -1 { break() }
+            if node.children(i) == 0 { break() }
 
             let box = Box {
                 min: || { vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i))) },
@@ -286,7 +286,7 @@ extern fn intersect_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &
 }
 
 extern fn occluded_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
-                              indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+                                        indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
