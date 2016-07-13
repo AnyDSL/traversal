@@ -42,9 +42,10 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
                    DEPENDS ${IMPALA_SRCS}
                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+set(CLANG_FLAGS -mavx2 -mavx -mfma -ffast-math CACHE ON "CLANG compilation options (AVX2 and AVX are required on the CPU)")
 thorin_runtime_wrap(IMPALA_PROGRAM
                     BACKEND ${BACKEND}
-                    CLANG_FLAGS -march=native -ffast-math
+                    CLANG_FLAGS ${CLANG_FLAGS}
                     FILES ${IMPALA_SRCS})
 
 set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
