@@ -1,0 +1,278 @@
+// Mapping for packet tracing on the CPU (using libWFV)
+static vector_size = 8;
+type Real = f32;
+type Mask = bool;
+type Intr = i32;
+type HitFn = fn (Intr, Real, Real, Real) -> ();
+
+fn real(x: f32) -> Real { x }
+fn intr(x: i32) -> Intr { x }
+fn mask(x: bool) -> Mask { x }
+
+fn terminated(a: Intr) -> Mask { a >= 0 }
+fn any(m: Mask) -> bool { wfv_any(m) }
+fn all(m: Mask) -> bool { wfv_all(m) }
+fn and(a: Mask, b: Mask) -> Mask { a & b }
+fn greater_eq(a: Real, b: Real) -> Mask { a >= b }
+fn greater(a: Real, b: Real) -> Mask    { a >  b }
+fn not_eq(a: Real, b: Real) -> Mask     { a != b }
+fn select_real(m: Mask, a: Real, b: Real) -> Real { if m { a } else { b } }
+fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
+
+fn abs_real(r: Real) -> Real { fabsf(r) }
+fn rcp_real(r: Real) -> Real { 1.0f / r }
+fn prodsign_real(x: Real, y: Real) -> Real { bitcast[f32](bitcast[i32](x) ^ (bitcast[i32](y) & intr(bitcast[i32](0x80000000u)))) }
+fn safe_rcp(x: Real) -> Real { if x == 0.0f { copysignf(flt_max, x) } else { rcp_real(x) } }
+
+// Use integer instructions for min/max
+fn min_real(a: Real, b: Real) -> Real { bitcast[f32](if bitcast[i32](a) < bitcast[i32](b) { bitcast[i32](a) } else { bitcast[i32](b) }) }
+fn max_real(a: Real, b: Real) -> Real { bitcast[f32](if bitcast[i32](a) < bitcast[i32](b) { bitcast[i32](a) } else { bitcast[i32](b) }) }
+fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
+fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
+fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
+fn maxmin_real(a: Real, b: Real, c: Real) -> Real { min_real(max_real(a, b), c) }
+
+struct Node {
+    min_x: [f32 * 4], min_y: [f32 * 4], min_z: [f32 * 4],
+    max_x: [f32 * 4], max_y: [f32 * 4], max_z: [f32 * 4],
+    children: [i32 * 4]
+}
+
+fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
+    |t, stack, body, return| {
+        // Cull this leaf if it is too far away
+        if all(greater_eq(stack.tmin(), t)) { return() }
+
+        let mut tri_id = !stack.top();
+        while true {
+            let tri_data = &tris(tri_id) as &[float];
+
+            for i in @unroll(0, 4) {
+                let id = bitcast[i32](tri_data(48 + i));
+
+                let v0 = vec3(real(tri_data( 0 + i)), real(tri_data( 4 + i)), real(tri_data( 8 + i)));
+                let e1 = vec3(real(tri_data(12 + i)), real(tri_data(16 + i)), real(tri_data(20 + i)));
+                let e2 = vec3(real(tri_data(24 + i)), real(tri_data(28 + i)), real(tri_data(32 + i)));
+                let n  = vec3(real(tri_data(36 + i)), real(tri_data(40 + i)), real(tri_data(44 + i)));
+                let tri = Tri {
+                    v0: || { v0 },
+                    e1: || { e1 },
+                    e2: || { e2 },
+                    n:  || { n }
+                };
+
+                body(tri, intr(id));
+            }
+
+            if bitcast[u32](tri_data(52)) == 0x80000000u {
+                break()
+            }
+
+            tri_id += 13;
+        }
+    }
+}
+
+fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
+    |t, stack, body, return| {
+        let node = nodes(stack.top());
+        let tmin = stack.tmin();
+        stack.pop();
+
+        // Cull this node if it is too far away
+        if all(greater_eq(tmin, t)) { return() }
+
+        for i in @unroll(0, 4) {
+            if node.children(i) == 0 { break() }
+
+            let box = Box {
+                min: || { vec3(real(node.min_x(i)), real(node.min_y(i)), real(node.min_z(i))) },
+                max: || { vec3(real(node.max_x(i)), real(node.max_y(i)), real(node.max_z(i))) }
+            };
+
+            body(box, |t0, t1| {
+                let t = select_real(greater_eq(t1, t0), t0, real(flt_max));
+                if any(greater_eq(t1, t0)) {
+                    if any(greater(stack.tmin(), t)) {
+                        stack.push(node.children(i), t)
+                    } else {
+                        stack.push_under(node.children(i), t)
+                    }
+                }
+            });
+        }
+    }
+}
+
+fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+    |ray_count, body| {
+        assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
+
+        for j in $parallel(0, 0, ray_count / vector_size) {
+            for i in vectorize(vector_size, j * vector_size, (j + 1) * vector_size) @{
+                let org: Vec3 = vec3(rays(i).org.x, rays(i).org.y, rays(i).org.z);
+                let dir: Vec3 = vec3(rays(i).dir.x, rays(i).dir.y, rays(i).dir.z);
+                let tmin: Real = rays(i).org.w;
+                let tmax: Real = rays(i).dir.w;
+
+                body(org, dir, tmin, tmax, |inst, tri, t, u, v| {
+                    hits(i).inst_id = inst;
+                    hits(i).tri_id = tri;
+                    hits(i).tmax = t;
+                    hits(i).u = u;
+                });
+            }
+        }
+    }
+}
+
+fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
+    |mask, tri_id, u, v| {
+        let w = real(1.0f) - u - v;
+        if mask {
+            let tri = &indices(tri_id * 4) as &[i32];
+            let uv0 = texcoords(tri(0));
+            let uv1 = texcoords(tri(1));
+            let uv2 = texcoords(tri(2));
+
+            let tu = uv0.x * w + uv1.x * u + uv2.x * v;
+            let tv = uv0.y * w + uv1.y * u + uv2.y * v;
+
+            $lookup_mask(masks(tri(3)), mask_buf, tu, tv)           
+        } else {
+            false
+        }
+    }
+}
+
+extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: no_transparency(),
+        any_hit: false
+    };
+
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
+}
+
+extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: no_transparency(),
+        any_hit: true
+    };
+
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
+}
+/*
+extern fn intersect_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                               indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
+        any_hit: false
+    };
+
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
+}
+
+extern fn occluded_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                              indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    let config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
+        any_hit: true
+    };
+
+    traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
+}
+
+extern fn intersect_cpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    let bottom_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: no_transparency(),
+        any_hit: false
+    };
+
+    let top_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: no_triangle(),
+        iterate_instances: iterate_instances(nodes, instances, bottom_config),
+        transparency: no_transparency(),
+        any_hit: false
+    };
+
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
+}
+
+extern fn occluded_cpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+    let bottom_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: no_transparency(),
+        any_hit: true
+    };
+
+    let top_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: no_triangle(),
+        iterate_instances: iterate_instances(nodes, instances, bottom_config),
+        transparency: no_transparency(),
+        any_hit: true
+    };
+
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
+}
+
+extern fn intersect_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                                         indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    let bottom_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
+        any_hit: false
+    };
+
+    let top_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: no_triangle(),
+        iterate_instances: iterate_instances(nodes, instances, bottom_config),
+        transparency: no_transparency(),
+        any_hit: false
+    };
+
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
+}
+
+extern fn occluded_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
+                                        indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+    let bottom_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: iterate_triangles(nodes, tris),
+        iterate_instances: no_instance(),
+        transparency: transparency(indices, texcoords, masks, mask_buf),
+        any_hit: true
+    };
+
+    let top_config = TraversalConfig {
+        iterate_children: iterate_children(nodes),
+        iterate_triangles: no_triangle(),
+        iterate_instances: iterate_instances(nodes, instances, bottom_config),
+        transparency: no_transparency(),
+        any_hit: true
+    };
+
+    traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
+}*/

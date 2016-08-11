@@ -19,7 +19,7 @@ set(COMMON_SRCS
     common/traversal.impala)
 
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
-    set(MAPPING_SRCS mappings/mapping_cpu.impala)
+    set(MAPPING_SRCS mappings/mapping_wfv.impala)
     set(LOADER_SRC frontend/load_mbvh.cpp)
     set(TRAVERSAL_DEFS "-Dget_time=thorin_get_micro_time" "-Dintersect=intersect_cpu" "-Doccluded=occluded_cpu" "-DTRAVERSAL_PLATFORM=HOST" "-DTRAVERSAL_DEVICE=0")
 elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
