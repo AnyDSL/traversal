@@ -2,13 +2,13 @@
 
 This is the main repository for the AnyDSL traversal code.
 
-### Requirements ###
+## Requirements
 
 The traversal code comes in two flavours: 
   * A CPU version, which requires an x86 processor with the AVX, AVX2 and FMA instruction sets.
   * A GPU version, based on CUDA, which requires a Maxwell GPU or a higher model.
 
-### Building ###
+## Building
 
 Run CMake and set the `BACKEND` variable to `cpu` to generate the CPU version, or `nvvm` to generate the GPU version:
 
@@ -18,7 +18,7 @@ Run CMake and set the `BACKEND` variable to `cpu` to generate the CPU version, o
     cd build
     cmake-gui ..
 
-### Running ###
+## Running
 
 The frontend benchmarks the traversal code and generates an output which contains the intersection parameters.
 It takes as input the scene file (which contains the acceleration structure) and the ray distribution.
@@ -37,7 +37,7 @@ You can also use the BVH file with the `viewer` utility:
     cd build/src
     ./viewer -a ../../testing/sibenik.bvh
 
-### Tools ###
+## Tools
 
 This repository also includes some tools to generate ray distributions for primary rays, and to convert the output
 of the frontend into a PNG image. You need libpng installed to compile them. Run them with `-h` to get the list of options.
