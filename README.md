@@ -2,7 +2,7 @@
 
 This is the main repository for the AnyDSL traversal code.
 
-# Requirements
+### Requirements ###
 
 The traversal code comes in two flavours: 
   * A CPU version, which requires an x86 processor with the AVX, AVX2 and FMA instruction sets.
