@@ -26,6 +26,17 @@ Run it with `-h` to get the list of options.
 
 When runnning the traversal on the GPU, make sure to run the executables in the directory where the file containing the compiled kernels (e.g. `traversal.nvvm` for the NVVM backend) is located.
 
+A sample BVH file and a primary ray distribution are provided for testing. You can use them with the frontend, like so:
+
+    cd build/src
+    ./frontend -a ../../testing/sibenik.bvh -r ../../testing/sibenik01.rays -n 80 -d 20 -o output.fbuf
+    ./fbuf2pnf output.fbuf image.png
+
+You can also use the BVH file with the `viewer` utility:
+
+    cd build/src
+    ./viewer -a ../../testing/sibenik.bvh
+
 ### Tools ###
 
 This repository also includes some tools to generate ray distributions for primary rays, and to convert the output
