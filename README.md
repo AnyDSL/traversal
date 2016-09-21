@@ -4,8 +4,9 @@ This is the main repository for the AnyDSL traversal code.
 
 # Requirements
 
-For the CPU version, an x86 processor with the AVX, AVX2 and FMA instruction sets is required.
-For the GPU version, an nVidia Maxwell 
+The traversal code comes in two flavours: 
+  * A CPU version, which requires an x86 processor with the AVX, AVX2 and FMA instruction sets.
+  * A GPU version, based on CUDA, which requires a Maxwell GPU or a higher model.
 
 ### Building ###
 
