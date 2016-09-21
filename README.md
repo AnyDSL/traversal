@@ -40,4 +40,4 @@ You can also use the BVH file with the `viewer` utility:
 ## Tools
 
 This repository also includes some tools to generate ray distributions for primary rays, and to convert the output
-of the frontend into a PNG image. You need libpng installed to compile them. Run them with `-h` to get the list of options.
+of the frontend into a PNG image. You need _libpng_ installed to compile them. Run them with `-h` to get the list of options.
