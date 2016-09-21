@@ -2,6 +2,11 @@
 
 This is the main repository for the AnyDSL traversal code.
 
+# Requirements
+
+For the CPU version, an x86 processor with the AVX, AVX2 and FMA instruction sets is required.
+For the GPU version, an nVidia Maxwell 
+
 ### Building ###
 
 Run CMake and set the `BACKEND` variable to `cpu` to generate the CPU version, or `nvvm` to generate the GPU version:
