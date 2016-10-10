@@ -45,7 +45,7 @@ struct Node {
     children: [i32 * 4]
 }
 
-fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
+fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
     |t, stack, body, return| {
         // Cull this leaf if it is too far away
         if all(greater_eq(stack.tmin(), t)) { return() }
@@ -111,7 +111,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
     |ray_count, body| {
         assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
@@ -149,7 +149,7 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
     }
 }
 
-fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
+fn transparency(indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
     |mask, tri_id, u, v| {
         let mut bit_mask = movmskps256(mask);
         let mut transp = bitcast[simd[i32 * 8]](mask);
