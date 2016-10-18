@@ -130,7 +130,7 @@ fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
         let grid = (ray_count / block_h, block_h, 1);
         let block = (block_w, block_h, 1);
 
-        acc(dev, grid, block, |exit| {
+        acc(dev, grid, block, |exit| -> ! {
             let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
             if id > ray_count {
                 exit()

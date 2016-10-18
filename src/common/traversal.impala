@@ -39,7 +39,7 @@ type TransparencyFn = fn (Mask, Intr, Real, Real) -> Mask;
 
 fn no_triangle() -> IterateTrianglesFn { |t, stack, body| {} }
 fn no_instance() -> IterateInstancesFn { |t, stack, body| {} }
-fn no_transparency() -> TransparencyFn { |mask, id, u, v, inst_id| { mask } }
+fn no_transparency() -> TransparencyFn { |mask, id, u, v| { mask } }
 
 struct TraversalConfig {
     iterate_children: IterateChildrenFn,
