@@ -18,7 +18,7 @@ static inline float as_float(int i) {
     return u.f;
 }
 
-bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, thorin::Array<Vec4>& tris_ref) {
+bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, thorin::Array<float>& tris_ref) {
     std::ifstream in(filename, std::ifstream::binary);
     if (!in || !check_header(in) || !locate_block(in, BlockType::MBVH))
         return false;
@@ -37,43 +37,22 @@ bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, tho
     assert(in.gcount() == sizeof(float) * 4 * h.vert_count);
     
     std::vector<Node> node_stack;
-    std::vector<Vec4> tri_stack;
+    std::vector<float> tri_stack;
 
     auto leaf_node = [&] (const mbvh::Node& node, int c) {
-        int node_id = ~(tri_stack.size());
+        int node_id = ~(tri_stack.size() / 4);
 
         for (int i = 0; i < node.prim_count[c]; i++) {
-            union{
-                struct {
-                    Vec4 v0_x, v0_y, v0_z;
-                    Vec4 e1_x, e1_y, e1_z;
-                    Vec4 e2_x, e2_y, e2_z;
-                    Vec4 n_x, n_y, n_z;
-                    Vec4 ids;
-                } tri_data;
-                float raw_data[4 * 13];
-            } tri;
-
-            memcpy(tri.raw_data, vertices.data() + node.children[c] * 4 + i * 4 * 13, sizeof(float) * 4 * 13);
-
-            tri_stack.push_back(tri.tri_data.v0_x);
-            tri_stack.push_back(tri.tri_data.v0_y);
-            tri_stack.push_back(tri.tri_data.v0_z);
-            tri_stack.push_back(tri.tri_data.e1_x);
-            tri_stack.push_back(tri.tri_data.e1_y);
-            tri_stack.push_back(tri.tri_data.e1_z);
-            tri_stack.push_back(tri.tri_data.e2_x);
-            tri_stack.push_back(tri.tri_data.e2_y);
-            tri_stack.push_back(tri.tri_data.e2_z);
-            tri_stack.push_back(tri.tri_data.n_x);
-            tri_stack.push_back(tri.tri_data.n_y);
-            tri_stack.push_back(tri.tri_data.n_z);
-            tri_stack.push_back(tri.tri_data.ids);
+            int cur = tri_stack.size();
+            tri_stack.resize(cur + 4 * 13);
+            memcpy(&tri_stack[cur], vertices.data() + node.children[c] * 4 + i * 4 * 13, sizeof(float) * 4 * 13);
         }
 
         // Insert sentinel
-        Vec4 sentinel = { -0.0f, -0.0f, -0.0f, -0.0f };
-        tri_stack.push_back(sentinel);
+        tri_stack.push_back(as_float(0x80000000));
+        tri_stack.push_back(as_float(0x80000000));
+        tri_stack.push_back(as_float(0x80000000));
+        tri_stack.push_back(as_float(0x80000000));
         return node_id;
     };
 
@@ -124,7 +103,7 @@ bool load_accel(const std::string& filename, thorin::Array<Node>& nodes_ref, tho
     nodes_ref = std::move(thorin::Array<Node>(node_stack.size()));
     std::copy(node_stack.begin(), node_stack.end(), nodes_ref.begin());
 
-    tris_ref = std::move(thorin::Array<Vec4>(tri_stack.size()));
+    tris_ref = std::move(thorin::Array<float>(tri_stack.size()));
     std::copy(tri_stack.begin(), tri_stack.end(), tris_ref.begin());
 
     return true;

@@ -56,12 +56,12 @@ public:
     {}
 
     template <typename F>
-    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
+    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<float>& tris) {
         traverse(f, nodes, tris, size());
     }
 
     template <typename F>
-    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris, int count) {
+    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<float>& tris, int count) {
 #ifdef CPU
         f(nodes.data(), tris.data(), rays(), hits(), size());
 #else
@@ -87,18 +87,8 @@ private:
 #endif
 };
 
-inline Vec4 make_vec4(float x, float y, float z, float w = 1.f) {
-    Vec4 v { x, y, z, w };
-    return v;
-}
-
-inline Vec4 make_vec4(const float3& f, float w = 1.f) {
-    Vec4 v { f.x, f.y, f.z, w };
-    return v;
-}
-
-inline float3 from_vec4(const Vec4& v) {
-    return float3(v.x, v.y, v.z);
+inline float3 from_vec4(const float* v) {
+    return float3(v[0], v[1], v[2]);
 }
 
 float3 cosine_weighted_sample_hemisphere(float u1, float u2)
@@ -152,7 +142,7 @@ void render_image(bool gen_primary,
                   const Config& cfg,
                   float* img,
                   thorin::Array<Node>& nodes,
-                  thorin::Array<Vec4>& tris,
+                  thorin::Array<float>& tris,
                   const std::vector<float>& local_coords,
                   RayBuffer& primary,
                   RayBuffer& ao_buffer) {
@@ -169,8 +159,15 @@ void render_image(bool gen_primary,
                 const float kx = 2 * x / (float)cfg.width - 1;
                 const float ky = 1 - 2 * y / (float)cfg.height;
                 const float3 dir = cam.dir + cam.right * kx + cam.up * ky;
-                primary.rays()[y * cfg.width + x].org = make_vec4(cam.eye, 0.0f);
-                primary.rays()[y * cfg.width + x].dir = make_vec4(dir, cfg.clip);
+                auto& ray = primary.rays()[y * cfg.width + x];
+                ray.org[0] = cam.eye.x;
+                ray.org[1] = cam.eye.y;
+                ray.org[2] = cam.eye.z;
+                ray.org[3] = 0.0f;
+                ray.dir[0] = dir.x;
+                ray.dir[1] = dir.y;
+                ray.dir[2] = dir.z;
+                ray.dir[3] = cfg.clip;
             }
         }
     }
@@ -220,13 +217,27 @@ void render_image(bool gen_primary,
                 const float3 s = sample_hemisphere(u1, u2);
                 const float3 dir = normalize(s.x * tangent + s.y * bitangent + s.z * normal);
 
-                ao_buffer.rays()[ao_rays + k].org = make_vec4(org, cfg.ao_offset);
-                ao_buffer.rays()[ao_rays + k].dir = make_vec4(dir, cfg.ao_tmax);
+                auto& ray = ao_buffer.rays()[ao_rays + k];
+                ray.org[0] = org.x;
+                ray.org[1] = org.y;
+                ray.org[2] = org.z;
+                ray.org[3] = cfg.ao_offset;
+                ray.dir[0] = dir.x;
+                ray.dir[1] = dir.y;
+                ray.dir[2] = dir.z;
+                ray.dir[3] = cfg.ao_tmax;
             }
         } else {
             for (int k = 0; k < cfg.samples; k++) {
-                ao_buffer.rays()[ao_rays + k].org = make_vec4(1e9, 1e9, 1e9, 1e9);
-                ao_buffer.rays()[ao_rays + k].dir = make_vec4(1, 1, 1, 0);
+                auto& ray = ao_buffer.rays()[ao_rays + k];
+                ray.org[0] = 1e9f;
+                ray.org[1] = 1e9f;
+                ray.org[2] = 1e9f;
+                ray.org[3] = 1e9f;
+                ray.dir[0] = 1;
+                ray.dir[1] = 1;
+                ray.dir[2] = 1;
+                ray.dir[3] = 0;
             }
         }
         ao_rays += cfg.samples;
@@ -348,7 +359,7 @@ int main(int argc, char** argv) {
     }
 
     thorin::Array<Node> nodes;
-    thorin::Array<Vec4> tris;
+    thorin::Array<float> tris;
     if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
@@ -394,8 +405,15 @@ int main(int argc, char** argv) {
             for (int i = 0; i < count; i++) {
                 float org_dir[6];
                 in.read((char*)org_dir, sizeof(float) * 6);
-                primary.rays()[i].org = make_vec4(org_dir[0], org_dir[1], org_dir[2], 0.0f);
-                primary.rays()[i].dir = make_vec4(org_dir[3], org_dir[4], org_dir[5], cfg.clip);
+                auto& ray = primary.rays()[i];
+                ray.org[0] = org_dir[0];
+                ray.org[1] = org_dir[1];
+                ray.org[2] = org_dir[2];
+                ray.org[3] = 0.0f;
+                ray.dir[0] = org_dir[3];
+                ray.dir[1] = org_dir[4];
+                ray.dir[2] = org_dir[5];
+                ray.dir[3] = cfg.clip;
             }
         }
 

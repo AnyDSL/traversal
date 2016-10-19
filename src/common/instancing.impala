@@ -1,5 +1,5 @@
 struct InstanceNode {
-    transf: Transf,
+    mat: mat3x4[f32],
     id: i32,
     next: i32,
     pad: [i32 * 2]
@@ -18,12 +18,15 @@ fn iterate_instances(nodes: &[Node], instances: &[InstanceNode], config: Travers
 
             stack.push(inst_node.next, tmin);
             let ptr = stack.pointer();
+            let mat = inst_node.mat;
             let inst = Inst {
-                transf: inst_node.transf,
-                id:     inst_node.id
+                mat: mat3x4(real(mat( 0)), real(mat( 1)), real(mat( 2)), real(mat( 3)),
+                            real(mat( 4)), real(mat( 5)), real(mat( 6)), real(mat( 7)),
+                            real(mat( 8)), real(mat( 9)), real(mat(10)), real(mat(11))),
+                id:  inst_node.id
             };
 
-            fn traverse_inst(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn) -> () {
+            fn traverse_inst(org: vec3[Real], dir: vec3[Real], tmin: Real, tmax: Real, record_hit: RecordHitFn) -> () {
                 traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
             };
 

@@ -1,18 +1,6 @@
 struct Ray {
-    org: Vec4,
-    dir: Vec4
-}
-
-struct Vec2 {
-    x: f32,
-    y: f32
-}
-
-struct Vec4 {
-    x: f32,
-    y: f32,
-    z: f32,
-    w: f32
+    org: vec4[f32],
+    dir: vec4[f32]
 }
 
 struct Hit {
@@ -23,15 +11,15 @@ struct Hit {
 }
 
 struct Inst {
-    transf: Transf,
+    mat: mat3x4[Real],
     id: i32
 }
 
-type TraverseInstanceFn = fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ();
+type TraverseInstanceFn = fn (vec3[Real], vec3[Real], Real, Real, RecordHitFn) -> ();
 type RecordHitFn = fn (Intr, Intr, Real, Real, Real) -> ();
 type BoxHitFn = fn (Real, Real) -> ();
 
-type IterateRaysFn = fn (i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
+type IterateRaysFn = fn (i32, fn (vec3[Real], vec3[Real], Real, Real, RecordHitFn) -> ()) -> ();
 type IterateChildrenFn = fn (Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
 type IterateTrianglesFn = fn (Real, Stack, fn (Tri, Intr) -> ()) -> ();
 type IterateInstancesFn = fn (Real, Stack, fn(Inst, TraverseInstanceFn) -> ()) -> ();
@@ -49,10 +37,10 @@ struct TraversalConfig {
     any_hit: bool
 }
 
-fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, config: TraversalConfig) -> () @{
+fn traverse_ray(stack: Stack, org: vec3[Real], dir: vec3[Real], tmin: Real, tmax: Real, record_hit: RecordHitFn, config: TraversalConfig) -> () @{
     // Initialize traversal variables
     let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
-    let oidir = vec3_mul(idir, org);
+    let oidir = idir * org;
     let mut t = tmax;
     let mut u = real(0.0f);
     let mut v = real(0.0f);
@@ -72,8 +60,8 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
         while is_leaf(stack.top()) @{
             // The leaf may contain a list of instanced meshes
             for inst, traverse_instance in config.iterate_instances(t, stack) @{
-                let tdir = transform_v(inst.transf, dir);
-                let torg = transform_p(inst.transf, org);
+                let tdir = (inst.mat * vec4(dir, real(0.0f))).xyz;
+                let torg = (inst.mat * vec4(org, real(1.0f))).xyz;
                 let when_hit: RecordHitFn = |inst0, intr0, t0, u0, v0| -> () {
                     let mask0 = terminated(intr0);
                     inst_id = select_intr(mask0, intr(inst.id), inst_id);

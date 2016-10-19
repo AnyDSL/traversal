@@ -12,8 +12,6 @@ set(COMMON_SRCS
     common/intersection.impala
     common/stack.impala
     common/range.impala
-    common/vector.impala
-    common/transform.impala
     common/transparency.impala
     common/instancing.impala
     common/traversal.impala)

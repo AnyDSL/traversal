@@ -48,7 +48,7 @@ struct Node {
     pad1: i32
 }
 
-fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
+fn iterate_triangles(nodes: &[Node], tris: &[vec4[f32]]) -> IterateTrianglesFn {
     |t, stack, body| {
         let mut loop_id = !stack.top();
         while true {
@@ -60,9 +60,9 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
             let v1 = vec3(sv1(0), sv1(1), sv1(2));
             let v2 = vec3(sv2(0), sv2(1), sv2(2));
 
-            let e1 = vec3_sub(v0, v1);
-            let e2 = vec3_sub(v2, v0);
-            let n = vec3_cross(e1, e2);
+            let e1 = v0 - v1;
+            let e2 = v2 - v0;
+            let n = cross(e1, e2);
 
             let tri = Tri {
                 v0: || { v0 },
@@ -82,9 +82,9 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
     }
 }
 
-fn iterate_children(mut nodes: &[Node]) -> IterateChildrenFn {
+fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     |t, stack, body| {
-        let mut node_ptr = &nodes(stack.top()) as &[f32];
+        let node_ptr = &nodes(stack.top()) as &[f32];
         let bb0 = ldg4_f32(&node_ptr(0) as &simd[f32 * 4]);
         let bb1 = ldg4_f32(&node_ptr(4) as &simd[f32 * 4]);
         let bb2 = ldg4_f32(&node_ptr(8) as &simd[f32 * 4]);
@@ -124,7 +124,7 @@ fn iterate_children(mut nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
     |ray_count, body| @{
         let dev = acc_dev();
         let grid = (ray_count / block_h, block_h, 1);
@@ -136,7 +136,7 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
                 exit()
             }
 
-            let mut ray_ptr = &rays(id) as &[f32];
+            let ray_ptr = &rays(id) as &[f32];
             let ray0 = ldg4_f32(&ray_ptr(0) as &simd[f32 * 4]);
             let ray1 = ldg4_f32(&ray_ptr(4) as &simd[f32 * 4]);
 
@@ -149,7 +149,7 @@ fn iterate_rays(mut rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
     }
 }
 
-fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
+fn transparency(indices: &[i32], texcoords: &[vec2[f32]], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
     |mask, tri_id, u, v| {
         if mask {
             let tri = *(&indices(tri_id * 4) as &simd[i32 * 4]);
@@ -168,7 +168,7 @@ fn transparency(mut indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMa
     }
 }
 
-extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn intersect_gpu(nodes: &[Node], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -180,7 +180,7 @@ extern fn intersect_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit
     traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn occluded_gpu(nodes: &[Node], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -192,8 +192,8 @@ extern fn occluded_gpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit]
     traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn intersect_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
-                               indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+extern fn intersect_gpu_masked(nodes: &[Node], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit],
+                               indices: &[i32], texcoords: &[vec2[f32]], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -205,8 +205,8 @@ extern fn intersect_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits
     traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn occluded_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
-                              indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+extern fn occluded_gpu_masked(nodes: &[Node], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit],
+                              indices: &[i32], texcoords: &[vec2[f32]], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -218,7 +218,7 @@ extern fn occluded_gpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits:
     traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn intersect_gpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn intersect_gpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -238,7 +238,7 @@ extern fn intersect_gpu_instanced(root: i32, nodes: &[Node], instances: &[Instan
     traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }
 
-extern fn occluded_gpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn occluded_gpu_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -258,8 +258,8 @@ extern fn occluded_gpu_instanced(root: i32, nodes: &[Node], instances: &[Instanc
     traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }
 
-extern fn intersect_gpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
-                                         indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+extern fn intersect_gpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit],
+                                         indices: &[i32], texcoords: &[vec2[f32]], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -279,8 +279,8 @@ extern fn intersect_gpu_masked_instanced(root: i32, nodes: &[Node], instances: &
     traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
 }
 
-extern fn occluded_gpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[Vec4], rays: &[Ray], hits: &[Hit],
-                                        indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
+extern fn occluded_gpu_masked_instanced(root: i32, nodes: &[Node], instances: &[InstanceNode], tris: &[vec4[f32]], rays: &[Ray], hits: &[Hit],
+                                        indices: &[i32], texcoords: &[vec2[f32]], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let bottom_config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),

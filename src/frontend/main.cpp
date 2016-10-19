@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     auto traversal = any ? occluded : intersect;
 
     thorin::Array<Node> nodes;
-    thorin::Array<Vec4> tris;
+    thorin::Array<float> tris;
     if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;

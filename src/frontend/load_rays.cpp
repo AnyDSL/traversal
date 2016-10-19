@@ -18,16 +18,16 @@ bool load_rays(const std::string& filename, thorin::Array<Ray>& rays_ref, float 
         in.read((char*)org_dir, sizeof(float) * 6);
         Ray& ray = host_rays.data()[i];
 
-        ray.org.x = org_dir[0];
-        ray.org.y = org_dir[1];
-        ray.org.z = org_dir[2];
+        ray.org[0] = org_dir[0];
+        ray.org[1] = org_dir[1];
+        ray.org[2] = org_dir[2];
 
-        ray.dir.x = org_dir[3];
-        ray.dir.y = org_dir[4];
-        ray.dir.z = org_dir[5];
+        ray.dir[0] = org_dir[3];
+        ray.dir[1] = org_dir[4];
+        ray.dir[2] = org_dir[5];
 
-        ray.org.w = tmin;
-        ray.dir.w = tmax;
+        ray.org[3] = tmin;
+        ray.dir[3] = tmax;
     }
 
     rays_ref = std::move(thorin::Array<Ray>(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), count));
