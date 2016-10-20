@@ -46,9 +46,9 @@ struct Node {
 }
 
 fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
-    |t, stack, body, return| {
+    |t, stack, body, exit| -> ! {
         // Cull this leaf if it is too far away
-        if all(greater_eq(stack.tmin(), t)) { return() }
+        if all(greater_eq(stack.tmin(), t)) { exit() }
 
         let mut tri_id = !stack.top();
         while true {
@@ -81,13 +81,13 @@ fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
 }
 
 fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
-    |t, stack, body, return| {
+    |t, stack, body, exit| -> ! {
         let node = nodes(stack.top());
         let tmin = stack.tmin();
         stack.pop();
 
         // Cull this node if it is too far away
-        if all(greater_eq(tmin, t)) { return() }
+        if all(greater_eq(tmin, t)) { exit() }
 
         for i in @unroll(0, 4) {
             if node.children(i) == 0 { break() }
@@ -111,7 +111,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
+fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
     |ray_count, body| {
         assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
