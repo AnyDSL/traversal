@@ -124,16 +124,16 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
     |ray_count, body| @{
         let dev = acc_dev();
         let grid = (ray_count / block_h, block_h, 1);
         let block = (block_w, block_h, 1);
 
-        acc(dev, grid, block, |exit| -> ! {
+        with acc(dev, grid, block) {
             let id = acc_tidx() + acc_bdimx() * (acc_tidy() + acc_bdimy() * (acc_bidx() + acc_gdimx() * acc_bidy()));
             if id > ray_count {
-                exit()
+                break()
             }
 
             let ray_ptr = &rays(id) as &[f32];
@@ -145,7 +145,7 @@ fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
                   ray0(3), ray1(3), |inst, tri, t, u, v| {
                 *(&hits(id) as &simd[f32 * 4]) = simd[bitcast[f32](inst), bitcast[f32](tri), t, u];
             });
-        })
+        }
     }
 }
 

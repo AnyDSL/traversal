@@ -111,7 +111,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(rays: &[Ray], mut hits: &[Hit]) -> IterateRaysFn {
+fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
     |ray_count, body| {
         assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
