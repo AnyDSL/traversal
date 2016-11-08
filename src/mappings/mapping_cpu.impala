@@ -32,8 +32,8 @@ fn safe_rcp(x: Real) -> Real {
 fn prodsign_real(x: Real, y: Real) -> Real { bitcast[simd[f32 * 8]](bitcast[simd[i32 * 8]](x) ^ (bitcast[simd[i32 * 8]](y) & intr(bitcast[i32](0x80000000u)))) }
 
 // Use integer instructions for min/max
-fn min_real(a: Real, b: Real) -> Real { bitcast[simd[f32 * 8]](select[simd[bool * 8],simd[i32 * 8]](bitcast[simd[i32 * 8]](a) < bitcast[simd[i32 * 8]](b), bitcast[simd[i32 * 8]](a), bitcast[simd[i32 * 8]](b))) }
-fn max_real(a: Real, b: Real) -> Real { bitcast[simd[f32 * 8]](select[simd[bool * 8],simd[i32 * 8]](bitcast[simd[i32 * 8]](a) > bitcast[simd[i32 * 8]](b), bitcast[simd[i32 * 8]](a), bitcast[simd[i32 * 8]](b))) }
+fn min_real(a: Real, b: Real) -> Real { bitcast[simd[f32 * 8]](select(bitcast[simd[i32 * 8]](a) < bitcast[simd[i32 * 8]](b), bitcast[simd[i32 * 8]](a), bitcast[simd[i32 * 8]](b))) }
+fn max_real(a: Real, b: Real) -> Real { bitcast[simd[f32 * 8]](select(bitcast[simd[i32 * 8]](a) > bitcast[simd[i32 * 8]](b), bitcast[simd[i32 * 8]](a), bitcast[simd[i32 * 8]](b))) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
 fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
