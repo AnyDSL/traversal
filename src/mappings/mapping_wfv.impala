@@ -9,6 +9,11 @@ fn real(x: f32) -> Real { x }
 fn intr(x: i32) -> Intr { x }
 fn mask(x: bool) -> Mask { x }
 
+extern "C" {
+    fn wfv_any(bool) -> bool;
+    fn wfv_all(bool) -> bool;
+}
+
 fn terminated(a: Intr) -> Mask { a >= 0 }
 fn any(m: Mask) -> bool { wfv_any(m) }
 fn all(m: Mask) -> bool { wfv_all(m) }
@@ -22,7 +27,7 @@ fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
 fn abs_real(r: Real) -> Real { fabsf(r) }
 fn rcp_real(r: Real) -> Real { 1.0f / r }
 fn prodsign_real(x: Real, y: Real) -> Real { bitcast[f32](bitcast[i32](x) ^ (bitcast[i32](y) & intr(bitcast[i32](0x80000000u)))) }
-fn safe_rcp(x: Real) -> Real { if x == 0.0f { copysignf(flt_max, x) } else { rcp_real(x) } }
+fn safe_rcp(x: Real) -> Real { if x == 0.0f { bitcast[f32](bitcast[u32](flt_max) | (bitcast[u32](x) & 0x80000000u)) } else { rcp_real(x) } }
 
 // Use integer instructions for min/max
 fn min_real(a: Real, b: Real) -> Real { bitcast[f32](if bitcast[i32](a) < bitcast[i32](b) { bitcast[i32](a) } else { bitcast[i32](b) }) }
@@ -39,9 +44,9 @@ struct Node {
 }
 
 fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
-    |t, stack, body, return| {
+    |t, stack, body, exit| -> ! {
         // Cull this leaf if it is too far away
-        if all(greater_eq(stack.tmin(), t)) { return() }
+        if all(greater_eq(stack.tmin(), t)) { exit() }
 
         let mut tri_id = !stack.top();
         while true {
@@ -74,13 +79,13 @@ fn iterate_triangles(nodes: &[Node], mut tris: &[Vec4]) -> IterateTrianglesFn {
 }
 
 fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
-    |t, stack, body, return| {
+    |t, stack, body, exit| -> ! {
         let node = nodes(stack.top());
         let tmin = stack.tmin();
         stack.pop();
 
         // Cull this node if it is too far away
-        if all(greater_eq(tmin, t)) { return() }
+        if all(greater_eq(tmin, t)) { exit() }
 
         for i in @unroll(0, 4) {
             if node.children(i) == 0 { break() }
