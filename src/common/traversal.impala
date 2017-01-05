@@ -95,7 +95,7 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
                     v = select_real(mask0, v0, v);
                     tri_id = select_intr(mask0, id, tri_id);
 
-                    if config.any_hit && all(terminated(tri_id)) {
+                    if config.any_hit && rv_all(terminated(tri_id)) {
                         terminate()
                     }
                 });

@@ -57,11 +57,11 @@ fn intersect_ray_tri(org: Vec3, dir: Vec3, tmin: Real, tmax: Real, tri: Tri, int
     let w = abs_det - u - v;
     mask = and(mask, greater_eq(w, real(0.0f)));
 
-    if any(mask) {
+    if rv_any(mask) {
         let t = prodsign_real(vec3_dot(n, c), det);
         mask = and(mask, and(greater_eq(t, abs_det * tmin), greater_eq(abs_det * tmax, t)));
         mask = and(mask, not_eq(det, real(0.0f)));
-        if any(mask) {
+        if rv_any(mask) {
             let inv_det = rcp_real(abs_det);
             intr(mask, t * inv_det, u * inv_det, v * inv_det);
         }
