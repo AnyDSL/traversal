@@ -46,7 +46,7 @@ struct Node {
 fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
     |t, stack, body, exit| -> ! {
         // Cull this leaf if it is too far away
-        if @all(greater_eq(stack.tmin(), t)) { exit() }
+        if all(greater_eq(stack.tmin(), t)) { exit() }
 
         let mut tri_id = !stack.top();
         while true {
@@ -85,7 +85,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
         stack.pop();
 
         // Cull this node if it is too far away
-        if @all(greater_eq(tmin, t)) { exit() }
+        if all(greater_eq(tmin, t)) { exit() }
 
         for i in @unroll(0, 4) {
             if node.children(i) == 0 { break() }
@@ -97,8 +97,8 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
 
             body(box, |t0, t1| {
                 let t = select_real(greater_eq(t1, t0), t0, real(flt_max));
-                if @any(greater_eq(t1, t0)) {
-                    if @any(greater(stack.tmin(), t)) {
+                if any(greater_eq(t1, t0)) {
+                    if any(greater(stack.tmin(), t)) {
                         stack.push(node.children(i), t)
                     } else {
                         stack.push_under(node.children(i), t)
