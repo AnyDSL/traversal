@@ -31,7 +31,7 @@ fn safe_rcp(x: Real) -> Real { if x == 0.0f { bitcast[f32](bitcast[u32](flt_max)
 
 // Use integer instructions for min/max
 fn min_real(a: Real, b: Real) -> Real { bitcast[f32](if bitcast[i32](a) < bitcast[i32](b) { bitcast[i32](a) } else { bitcast[i32](b) }) }
-fn max_real(a: Real, b: Real) -> Real { bitcast[f32](if bitcast[i32](a) < bitcast[i32](b) { bitcast[i32](a) } else { bitcast[i32](b) }) }
+fn max_real(a: Real, b: Real) -> Real { bitcast[f32](if bitcast[i32](a) > bitcast[i32](b) { bitcast[i32](a) } else { bitcast[i32](b) }) }
 fn minmin_real(a: Real, b: Real, c: Real) -> Real { min_real(min_real(a, b), c) }
 fn maxmax_real(a: Real, b: Real, c: Real) -> Real { max_real(max_real(a, b), c) }
 fn minmax_real(a: Real, b: Real, c: Real) -> Real { max_real(min_real(a, b), c) }
