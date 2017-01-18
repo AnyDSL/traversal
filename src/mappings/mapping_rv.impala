@@ -1,5 +1,6 @@
-// Mapping for packet tracing on the CPU (using libWFV)
+// Mapping for packet tracing on the CPU (using RV)
 static vector_size = 8;
+static alignment = 32;
 type Real = f32;
 type Mask = bool;
 type Intr = i32;
@@ -114,7 +115,7 @@ fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
         assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
         for j in $parallel(0, 0, ray_count / vector_size) {
-            for i in vectorize(vector_size, j * vector_size, (j + 1) * vector_size) @{
+            for i in vectorize(vector_size, alignment, j * vector_size, (j + 1) * vector_size) @{
                 let org: Vec3 = vec3(rays(i).org.x, rays(i).org.y, rays(i).org.z);
                 let dir: Vec3 = vec3(rays(i).dir.x, rays(i).dir.y, rays(i).dir.z);
                 let tmin: Real = rays(i).org.w;
