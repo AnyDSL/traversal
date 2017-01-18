@@ -21,11 +21,11 @@ set(COMMON_SRCS
 if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
     set(MAPPING_SRCS mappings/mapping_rv.impala)
     set(LOADER_SRC frontend/load_mbvh.cpp)
-    set(TRAVERSAL_DEFS "-Dget_time=thorin_get_micro_time" "-Dintersect=intersect_cpu" "-Doccluded=occluded_cpu" "-DTRAVERSAL_PLATFORM=HOST" "-DTRAVERSAL_DEVICE=0")
+    set(TRAVERSAL_DEFS "-Dget_time=anydsl_get_micro_time" "-Dintersect=intersect_cpu" "-Doccluded=occluded_cpu" "-DTRAVERSAL_PLATFORM=HOST" "-DTRAVERSAL_DEVICE=0")
 elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
     set(MAPPING_SRCS mappings/mapping_gpu.impala)
     set(LOADER_SRC frontend/load_bvh.cpp)
-    set(TRAVERSAL_DEFS "-Dget_time=thorin_get_kernel_time" "-Dintersect=intersect_gpu" "-Doccluded=occluded_gpu" "-DTRAVERSAL_PLATFORM=CUDA" "-DTRAVERSAL_DEVICE=0")
+    set(TRAVERSAL_DEFS "-Dget_time=anydsl_get_kernel_time" "-Dintersect=intersect_gpu" "-Doccluded=occluded_gpu" "-DTRAVERSAL_PLATFORM=CUDA" "-DTRAVERSAL_DEVICE=0")
 else()
     message(FATAL_ERROR "Backend not supported")
 endif()
@@ -35,23 +35,24 @@ set(IMPALA_SRCS ${MAPPING_SRCS} ${COMMON_SRCS})
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
                    COMMAND impala -emit-c-interface ${IMPALA_SRCS}
-                          ${THORIN_RUNTIME_DIR}/runtime.impala
-                          ${THORIN_RUNTIME_DIR}/platforms/intrinsics_${BACKEND}.impala
-                          ${THORIN_RUNTIME_DIR}/platforms/intrinsics_thorin.impala
+                          ${ANYDSL_RUNTIME_DIR}/src/runtime.impala
+                          ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics_${BACKEND}.impala
+                          ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics_thorin.impala
                           -o frontend/traversal
                    DEPENDS ${IMPALA_SRCS}
                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-thorin_runtime_wrap(IMPALA_PROGRAM
+set(CLANG_FLAGS -mavx2 -mavx -mfma -ffast-math CACHE ON "CLANG compilation options (AVX2 and AVX are required on the CPU)")
+anydsl_runtime_wrap(IMPALA_PROGRAM
                     BACKEND ${BACKEND}
-                    CLANG_FLAGS -march=native -ffast-math
+                    CLANG_FLAGS ${CLANG_FLAGS}
                     FILES ${IMPALA_SRCS})
 
 set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
 
 # Traversal library
 add_library(traversal ${IMPALA_PROGRAM})
-target_link_libraries(traversal ${THORIN_RUNTIME_LIBRARY} ${THORIN_RUNTIME_LIBRARIES})
+target_link_libraries(traversal ${ANYDSL_RUNTIME_LIBRARY} ${ANYDSL_RUNTIME_LIBRARIES})
 target_compile_definitions(traversal PUBLIC ${TRAVERSAL_DEFS})
 
 # Traversal frontend

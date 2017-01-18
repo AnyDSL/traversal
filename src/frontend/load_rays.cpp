@@ -1,16 +1,16 @@
 #include <fstream>
 #include <string>
-#include <thorin_runtime.hpp>
+#include <anydsl_runtime.hpp>
 #include "traversal.h"
 
-bool load_rays(const std::string& filename, thorin::Array<Ray>& rays_ref, float tmin, float tmax) {
+bool load_rays(const std::string& filename, anydsl::Array<Ray>& rays_ref, float tmin, float tmax) {
     std::ifstream in(filename, std::ifstream::binary);
     if (!in) return false;
 
     in.seekg(0, std::ifstream::end);
     int count = in.tellg() / (sizeof(float) * 6);
 
-    thorin::Array<Ray> host_rays(count);
+    anydsl::Array<Ray> host_rays(count);
     in.seekg(0);
 
     for (int i = 0; i < count; i++) {
@@ -30,8 +30,8 @@ bool load_rays(const std::string& filename, thorin::Array<Ray>& rays_ref, float 
         ray.dir.w = tmax;
     }
 
-    rays_ref = std::move(thorin::Array<Ray>(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), count));
-    thorin::copy(host_rays, rays_ref);
+    rays_ref = std::move(anydsl::Array<Ray>(anydsl::Platform::TRAVERSAL_PLATFORM, anydsl::Device(TRAVERSAL_DEVICE), count));
+    anydsl::copy(host_rays, rays_ref);
 
     return true;
 }

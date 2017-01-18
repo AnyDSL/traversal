@@ -1,7 +1,6 @@
 #include <string>
 #include <vector>
 #include <fstream>
-#include <thorin_runtime.hpp>
 
 #include "traversal.h"
 #include "bvh_format.h"
