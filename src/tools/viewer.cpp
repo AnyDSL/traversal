@@ -6,7 +6,7 @@
 #include <cassert>
 
 #include <SDL2/SDL.h>
-#include <thorin_runtime.h>
+#include <anydsl_runtime.h>
 
 #include "../frontend/options.h"
 #include "../frontend/traversal.h"
@@ -50,24 +50,24 @@ public:
         : host_rays(count)
         , host_hits(count)
 #ifndef CPU
-        , dev_rays(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), count)
-        , dev_hits(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), count)
+        , dev_rays(anydsl::Platform::TRAVERSAL_PLATFORM, anydsl::Device(TRAVERSAL_DEVICE), count)
+        , dev_hits(anydsl::Platform::TRAVERSAL_PLATFORM, anydsl::Device(TRAVERSAL_DEVICE), count)
 #endif
     {}
 
     template <typename F>
-    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris) {
+    void traverse(F f, anydsl::Array<Node>& nodes, anydsl::Array<Vec4>& tris) {
         traverse(f, nodes, tris, size());
     }
 
     template <typename F>
-    void traverse(F f, thorin::Array<Node>& nodes, thorin::Array<Vec4>& tris, int count) {
+    void traverse(F f, anydsl::Array<Node>& nodes, anydsl::Array<Vec4>& tris, int count) {
 #ifdef CPU
         f(nodes.data(), tris.data(), rays(), hits(), size());
 #else
-        thorin::copy(host_rays, dev_rays);
+        anydsl::copy(host_rays, dev_rays);
         f(nodes.data(), tris.data(), dev_rays.data(), dev_hits.data(), count);
-        thorin::copy(dev_hits, host_hits);
+        anydsl::copy(dev_hits, host_hits);
 #endif
     }
 
@@ -79,11 +79,11 @@ public:
     int size() const { return host_rays.size(); }
 
 private:
-    thorin::Array<Ray> host_rays;
-    thorin::Array<Hit> host_hits;
+    anydsl::Array<Ray> host_rays;
+    anydsl::Array<Hit> host_hits;
 #ifndef CPU
-    thorin::Array<Ray> dev_rays;
-    thorin::Array<Hit> dev_hits;
+    anydsl::Array<Ray> dev_rays;
+    anydsl::Array<Hit> dev_hits;
 #endif
 };
 
@@ -151,8 +151,8 @@ void render_image(bool gen_primary,
                   const Camera& cam,
                   const Config& cfg,
                   float* img,
-                  thorin::Array<Node>& nodes,
-                  thorin::Array<Vec4>& tris,
+                  anydsl::Array<Node>& nodes,
+                  anydsl::Array<Vec4>& tris,
                   const std::vector<float>& local_coords,
                   RayBuffer& primary,
                   RayBuffer& ao_buffer) {
@@ -347,8 +347,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    thorin::Array<Node> nodes;
-    thorin::Array<Vec4> tris;
+    anydsl::Array<Node> nodes;
+    anydsl::Array<Vec4> tris;
     if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;

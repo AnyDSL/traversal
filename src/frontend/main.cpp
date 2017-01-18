@@ -3,7 +3,7 @@
 #include <chrono>
 #include <functional>
 #include <numeric>
-#include <thorin_runtime.hpp>
+#include <anydsl_runtime.hpp>
 
 #include "options.h"
 #include "traversal.h"
@@ -43,14 +43,14 @@ int main(int argc, char** argv) {
 
     auto traversal = any ? occluded : intersect;
 
-    thorin::Array<Node> nodes;
-    thorin::Array<Vec4> tris;
+    anydsl::Array<Node> nodes;
+    anydsl::Array<Vec4> tris;
     if (!load_accel(accel_file, nodes, tris)) {
         std::cerr << "Cannot load acceleration structure file." << std::endl;
         return EXIT_FAILURE;
     }
 
-    thorin::Array<Ray> rays;
+    anydsl::Array<Ray> rays;
     if (!load_rays(rays_file, rays, tmin, tmax)) {
         std::cerr << "Cannot load ray distribution file." << std::endl;
         return EXIT_FAILURE;
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
 
     std::cout << ray_count << " ray(s) in the distribution file." << std::endl;
 
-    thorin::Array<Hit> hits(thorin::Platform::TRAVERSAL_PLATFORM, thorin::Device(TRAVERSAL_DEVICE), ray_count);
+    anydsl::Array<Hit> hits(anydsl::Platform::TRAVERSAL_PLATFORM, anydsl::Device(TRAVERSAL_DEVICE), ray_count);
 
     // Warmup iterations
     for (int i = 0; i < warmup; i++) {
@@ -77,8 +77,8 @@ int main(int argc, char** argv) {
     }
 
     // Read the result from the device
-    thorin::Array<Hit> host_hits(ray_count);
-    thorin::copy(hits, host_hits);
+    anydsl::Array<Hit> host_hits(ray_count);
+    anydsl::copy(hits, host_hits);
 
     std::sort(iter_times.begin(), iter_times.end());
 
