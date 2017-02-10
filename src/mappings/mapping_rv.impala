@@ -110,7 +110,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(rays: &[Ray], hits: &[Hit]) -> IterateRaysFn {
+fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
     |ray_count, body| {
         assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
@@ -151,7 +151,7 @@ fn transparency(indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask],
     }
 }
 
-extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &mut [Hit], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
@@ -163,7 +163,7 @@ extern fn intersect_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit
     traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
 
-extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &[Hit], ray_count: i32) -> () {
+extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &mut [Hit], ray_count: i32) -> () {
     let config = TraversalConfig {
         iterate_children: iterate_children(nodes),
         iterate_triangles: iterate_triangles(nodes, tris),
