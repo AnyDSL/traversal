@@ -14,15 +14,15 @@
 #include "linear.h"
 #include "camera.h"
 
-#define HOST   0
-#define CUDA   1
-#define OPENCL 2
+#define Host   0
+#define Cuda   1
+#define OpenCL 2
 #if TRAVERSAL_PLATFORM == 0
 #define CPU
 #endif
-#undef HOST
-#undef CUDA
-#undef OPENCL
+#undef Host
+#undef Cuda
+#undef OpenCL
 
 struct Config {
     int width;
