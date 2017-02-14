@@ -30,7 +30,7 @@ A sample BVH file and a primary ray distribution are provided for testing. You c
 
     cd build/src
     ./frontend -a ../../testing/sibenik.bvh -r ../../testing/sibenik01.rays -n 80 -d 20 -o output.fbuf
-    ./fbuf2pnf output.fbuf image.png
+    ./fbuf2png output.fbuf image.png
 
 You can also use the BVH file with the `viewer` utility:
 
