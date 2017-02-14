@@ -197,7 +197,7 @@ extern fn occluded_cpu(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &mut [
 
     traverse_rays(0, iterate_rays(rays, hits), ray_count, config);
 }
-
+/*
 extern fn intersect_cpu_masked(nodes: &[Node], tris: &[Vec4], rays: &[Ray], hits: &mut [Hit],
                                indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8], ray_count: i32) -> () {
     let config = TraversalConfig {
@@ -304,4 +304,4 @@ extern fn occluded_cpu_masked_instanced(root: i32, nodes: &[Node], instances: &[
     };
 
     traverse_rays(root, iterate_rays(rays, hits), ray_count, top_config);
-}
+}*/

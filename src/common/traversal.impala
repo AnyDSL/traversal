@@ -71,7 +71,7 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
         // Intersect leaves
         while is_leaf(stack.top()) @{
             // The leaf may contain a list of instanced meshes
-            for inst, traverse_instance in config.iterate_instances(t, stack) @{
+            /*for inst, traverse_instance in config.iterate_instances(t, stack) @{
                 let tdir = transform_v(inst.transf, dir);
                 let torg = transform_p(inst.transf, org);
                 let when_hit: RecordHitFn = |inst0, intr0, t0, u0, v0| -> () {
@@ -83,16 +83,16 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
                     v = select_real(mask0, v0, v);
                 };
                 traverse_instance(torg, tdir, tmin, t, when_hit);
-            }
+            }*/
 
             // The leaf may contain a list of triangles
             for tri, id in config.iterate_triangles(t, stack) {
                 intersect_ray_tri(org, dir, tmin, t, tri, |mut mask0, t0, u0, v0| {
-                    mask0 = config.transparency(mask0, id, u0, v0);
+                    //mask0 = config.transparency(mask0, id, u0, v0);
 
-                    t = select_real(mask0, t0, t);
-                    u = select_real(mask0, u0, u);
-                    v = select_real(mask0, v0, v);
+                    //t = select_real(mask0, t0, t);
+                    //u = select_real(mask0, u0, u);
+                    //v = select_real(mask0, v0, v);
                     tri_id = select_intr(mask0, id, tri_id);
 
                     if config.any_hit && all(terminated(tri_id)) {
