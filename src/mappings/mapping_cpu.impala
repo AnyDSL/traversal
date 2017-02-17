@@ -1,6 +1,13 @@
 // Mapping for packet tracing on the CPU
 static vector_size = 8;
 
+extern "device" {
+    fn "llvm.x86.avx.movmsk.ps.256" movmskps256(simd[f32 * 8]) -> i32;
+    fn "llvm.x86.avx.cmp.ps.256" cmpps256(simd[f32 * 8], simd[f32 * 8], i8) -> simd[f32 * 8];
+    fn "llvm.x86.avx.rcp.ps.256" rcpps256(simd[f32 * 8]) -> simd[f32 * 8];
+    fn "llvm.x86.avx.blendv.ps.256" blendvps256(simd[f32 * 8], simd[f32 * 8], simd[f32 * 8]) -> simd[f32 * 8];
+}
+
 type Real = simd[f32 * 8];
 type Mask = simd[f32 * 8];
 type Intr = simd[i32 * 8];

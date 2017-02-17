@@ -20,9 +20,7 @@ find_package(AnyDSL-runtime REQUIRED)
 include(${ANYDSL_RUNTIME_CMAKE_DIR}/Runtime.cmake)
 include_directories(${ANYDSL_RUNTIME_DIR}/src)
 
-if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
-    set(BACKEND "cpu")
-endif()
+set(BACKEND ${BACKEND} CACHE STRING "select the backend from the following: CPU, NVVM")
 
 find_package(Threads REQUIRED)
 find_package(PNG REQUIRED)
