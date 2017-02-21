@@ -18,11 +18,11 @@ set(COMMON_SRCS
     common/instancing.impala
     common/traversal.impala)
 
-if(BACKEND STREQUAL "cpu" OR BACKEND STREQUAL "avx")
+if(BACKEND STREQUAL "cpu")
     set(MAPPING_SRCS mappings/mapping_cpu.impala)
     set(LOADER_SRC frontend/load_mbvh.cpp)
     set(TRAVERSAL_DEFS "-Dget_time=anydsl_get_micro_time" "-Dintersect=intersect_cpu" "-Doccluded=occluded_cpu" "-DTRAVERSAL_PLATFORM=Host" "-DTRAVERSAL_DEVICE=0")
-elseif(BACKEND STREQUAL "nvvm" OR BACKEND STREQUAL "cuda")
+elseif(BACKEND STREQUAL "nvvm")
     set(MAPPING_SRCS mappings/mapping_gpu.impala)
     set(LOADER_SRC frontend/load_bvh.cpp)
     set(TRAVERSAL_DEFS "-Dget_time=anydsl_get_kernel_time" "-Dintersect=intersect_gpu" "-Doccluded=occluded_gpu" "-DTRAVERSAL_PLATFORM=Cuda" "-DTRAVERSAL_DEVICE=0")
@@ -36,6 +36,7 @@ set(IMPALA_SRCS ${MAPPING_SRCS} ${COMMON_SRCS})
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
                    COMMAND impala -emit-c-interface ${IMPALA_SRCS}
                           ${ANYDSL_RUNTIME_DIR}/src/runtime.impala
+                          ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics.impala
                           ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics_${BACKEND}.impala
                           ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics_thorin.impala
                           -o frontend/traversal
@@ -44,7 +45,6 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
 
 set(CLANG_FLAGS -mavx2 -mavx -mfma -ffast-math CACHE ON "CLANG compilation options (AVX2 and AVX are required on the CPU)")
 anydsl_runtime_wrap(IMPALA_PROGRAM
-                    BACKEND ${BACKEND}
                     CLANG_FLAGS ${CLANG_FLAGS}
                     FILES ${IMPALA_SRCS})
 
