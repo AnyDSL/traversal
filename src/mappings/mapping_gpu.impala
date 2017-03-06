@@ -104,27 +104,29 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
             max: || { vec3(bb1(3), bb2(1), bb2(3)) }
         };
 
-        body(box1, |t00, t01| {
-            body(box2, |t10, t11| {
-                let hit0 = t00 <= t01;
-                let hit1 = t10 <= t11;
-                if !hit0 && !hit1 {
-                    stack.pop();
-                } else {
-                    if hit0 && hit1 {
-                        if t00 < t10 {
-                            let children0 = children(0);
-                            children(0) = children(1);
-                            children(1) = children0;
-                        }
-                        stack.push_under(children(0), 0.0f);
-                        stack.set_top(children(1), 0.0f);
-                    } else {
-                        stack.set_top(if hit0 { children(0) } else { children(1) }, 0.0f)
-                    }
+        let intersect_child = |box| -> (bool, float) {
+            body(box, |tentry, texit, _| -> ! { return(tentry <= texit, tentry) });
+            (false, 0.0f)
+        };
+
+        let (hit1, t1) = @intersect_child(box1);
+        let (hit2, t2) = @intersect_child(box2);
+
+        if !hit1 && !hit2 {
+            stack.pop();
+        } else {
+            if hit1 && hit2 {
+                if t1 < t2 {
+                    let children0 = children(0);
+                    children(0) = children(1);
+                    children(1) = children0;
                 }
-            });
-        });
+                stack.push_under(children(0), 0.0f);
+                stack.set_top(children(1), 0.0f);
+            } else {
+                stack.set_top(if hit1 { children(0) } else { children(1) }, 0.0f)
+            }
+        }
     }
 }
 
@@ -135,7 +137,7 @@ fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
 
         with acc.exec(device, grid, block) {
             let id = acc.tidx() + acc.bdimx() * (acc.tidy() + acc.bdimy() * (acc.bidx() + acc.gdimx() * acc.bidy()));
-            if id > ray_count {
+            if id >= ray_count {
                 break()
             }
 
