@@ -25,7 +25,7 @@ fn not_eq(a: Real, b: Real) -> Mask     { a != b }
 fn select_real(m: Mask, a: Real, b: Real) -> Real { if m { a } else { b } }
 fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
 
-fn abs_real(r: Real) -> Real { fabsf(r) }
+fn abs_real(r: Real) -> Real { cpu_fabsf(r) }
 fn rcp_real(r: Real) -> Real { 1.0f / r }
 fn prodsign_real(x: Real, y: Real) -> Real { bitcast[f32](bitcast[i32](x) ^ (bitcast[i32](y) & intr(bitcast[i32](0x80000000u)))) }
 fn safe_rcp(x: Real) -> Real { if x == 0.0f { bitcast[f32](bitcast[u32](flt_max) | (bitcast[u32](x) & 0x80000000u)) } else { rcp_real(x) } }
