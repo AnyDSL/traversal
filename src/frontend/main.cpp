@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     }
 
     // Compute traversal time
-    std::vector<long long> iter_times(times);
+    std::vector<double> iter_times(times);
     for (int i = 0; i < times; i++) {
         long long t0 = get_time();
         traversal(nodes.data(), tris.data(), rays.data(), hits.data(), ray_count);
@@ -82,8 +82,8 @@ int main(int argc, char** argv) {
 
     std::sort(iter_times.begin(), iter_times.end());
 
-    long long median = iter_times[times / 2];
-    long long sum = std::accumulate(iter_times.begin(), iter_times.end(), 0);
+    double median = iter_times[times / 2];
+    double sum = std::accumulate(iter_times.begin(), iter_times.end(), 0);
     std::cout << sum / 1000.0 << "ms for " << times << " iteration(s)." << std::endl;
     std::cout << ray_count * times * 1000000.0 / sum << " rays/sec." << std::endl;
     std::cout << "# Average: " << sum / 1000.0 / times << " ms" << std::endl;
