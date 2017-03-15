@@ -261,6 +261,8 @@ void render_image(bool gen_primary,
 }
 
 bool handle_events(View& view, int& accum) {
+    static bool keyUp = false, keyDown = false, keyLeft = false, keyRight = false, keyPlus = false, keyMinus = false;
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -277,15 +279,19 @@ bool handle_events(View& view, int& accum) {
                 }
                 break;
             case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                bool isKeyDown = event.type == SDL_KEYDOWN;
+
                 switch (event.key.keysym.sym) {
-                    case SDLK_UP:    view.eye = view.eye + view.tspeed * view.forward; accum = 0; break;
-                    case SDLK_DOWN:  view.eye = view.eye - view.tspeed * view.forward; accum = 0; break;
-                    case SDLK_LEFT:  view.eye = view.eye - view.tspeed * view.right;   accum = 0; break;
-                    case SDLK_RIGHT: view.eye = view.eye + view.tspeed * view.right;   accum = 0; break;
-                    case SDLK_KP_PLUS:  view.tspeed *= 1.1f; break;
-                    case SDLK_KP_MINUS: view.tspeed /= 1.1f; break;
+                    case SDLK_RIGHT: keyRight = isKeyDown; break;
+                    case SDLK_LEFT: keyLeft = isKeyDown; break;
+                    case SDLK_UP: keyUp = isKeyDown; break;
+                    case SDLK_DOWN: keyDown = isKeyDown; break;
+                    case SDLK_KP_PLUS: keyPlus = isKeyDown; break;
+                    case SDLK_KP_MINUS: keyMinus = isKeyDown; break;
+
                     case SDLK_c:
-                        {
+                        if (isKeyDown) {
                             const float3 center = view.eye + view.forward * view.dist;
                             std::cout << "Eye: " << view.eye.x << " " << view.eye.y << " " << view.eye.z << std::endl;
                             std::cout << "Center: " << center.x << " " << center.y << " " << center.z << std::endl;
@@ -298,6 +304,13 @@ bool handle_events(View& view, int& accum) {
                 break;
         }
     }
+
+    if (keyUp) { view.eye = view.eye + view.tspeed * view.forward; accum = 0; }
+    if (keyDown) {  view.eye = view.eye - view.tspeed * view.forward; accum = 0; }
+    if (keyLeft) { view.eye = view.eye - view.tspeed * view.right;   accum = 0; }
+    if (keyRight) { view.eye = view.eye + view.tspeed * view.right;   accum = 0; }
+    if (keyPlus) { view.tspeed *= 1.1f; }
+    if (keyMinus) { view.tspeed /= 1.1f; }
 
     return false;
 }
