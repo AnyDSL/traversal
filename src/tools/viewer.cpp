@@ -164,10 +164,12 @@ void render_image(bool gen_primary,
 
     // Generate primary rays
     if (gen_primary) {
+        static std::minstd_rand gen;
+        static std::uniform_real_distribution<float> rnd(0, 1);
         for (int y = 0; y < cfg.height; y++) {
             for (int x = 0; x < cfg.width; x++) {
-                const float kx = 2 * x / (float)cfg.width - 1;
-                const float ky = 1 - 2 * y / (float)cfg.height;
+                const float kx = 2 * (x + rnd(gen)) / (float)cfg.width - 1;
+                const float ky = 1 - 2 * (y + rnd(gen)) / (float)cfg.height;
                 const float3 dir = cam.dir + cam.right * kx + cam.up * ky;
                 primary.rays()[y * cfg.width + x].org = make_vec4(cam.eye, 0.0f);
                 primary.rays()[y * cfg.width + x].dir = make_vec4(dir, cfg.clip);
@@ -261,7 +263,7 @@ void render_image(bool gen_primary,
 }
 
 bool handle_events(View& view, int& accum) {
-    static bool keyUp = false, keyDown = false, keyLeft = false, keyRight = false, keyPlus = false, keyMinus = false;
+    static bool arrows[4], zoom[2];
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -280,22 +282,22 @@ bool handle_events(View& view, int& accum) {
                 break;
             case SDL_KEYDOWN:
             case SDL_KEYUP:
-                bool isKeyDown = event.type == SDL_KEYDOWN;
+                bool key_down = event.type == SDL_KEYDOWN;
 
                 switch (event.key.keysym.sym) {
-                    case SDLK_RIGHT: keyRight = isKeyDown; break;
-                    case SDLK_LEFT: keyLeft = isKeyDown; break;
-                    case SDLK_UP: keyUp = isKeyDown; break;
-                    case SDLK_DOWN: keyDown = isKeyDown; break;
-                    case SDLK_KP_PLUS: keyPlus = isKeyDown; break;
-                    case SDLK_KP_MINUS: keyMinus = isKeyDown; break;
+                    case SDLK_RIGHT:    arrows[0] = key_down; break;
+                    case SDLK_LEFT:     arrows[1] = key_down; break;
+                    case SDLK_UP:       arrows[2] = key_down; break;
+                    case SDLK_DOWN:     arrows[3] = key_down; break;
+                    case SDLK_KP_PLUS:  zoom[0]   = key_down; break;
+                    case SDLK_KP_MINUS: zoom[1]   = key_down; break;
 
                     case SDLK_c:
-                        if (isKeyDown) {
+                        if (key_down) {
                             const float3 center = view.eye + view.forward * view.dist;
-                            std::cout << "Eye: " << view.eye.x << " " << view.eye.y << " " << view.eye.z << std::endl;
-                            std::cout << "Center: " << center.x << " " << center.y << " " << center.z << std::endl;
-                            std::cout << "Up: " << view.up.x << " " << view.up.y << " " << view.up.z << std::endl;
+                            std::cout << "Eye: "    << view.eye.x << " " << view.eye.y << " " << view.eye.z << std::endl;
+                            std::cout << "Center: " << center.x   << " " << center.y   << " " << center.z   << std::endl;
+                            std::cout << "Up: "     << view.up.x  << " " << view.up.y  << " " << view.up.z  << std::endl;
                         }
                         break;
                     case SDLK_ESCAPE:
@@ -305,12 +307,13 @@ bool handle_events(View& view, int& accum) {
         }
     }
 
-    if (keyUp) { view.eye = view.eye + view.tspeed * view.forward; accum = 0; }
-    if (keyDown) {  view.eye = view.eye - view.tspeed * view.forward; accum = 0; }
-    if (keyLeft) { view.eye = view.eye - view.tspeed * view.right;   accum = 0; }
-    if (keyRight) { view.eye = view.eye + view.tspeed * view.right;   accum = 0; }
-    if (keyPlus) { view.tspeed *= 1.1f; }
-    if (keyMinus) { view.tspeed /= 1.1f; }
+    if (arrows[0]) { view.eye = view.eye + view.tspeed * view.right;   accum = 0; }
+    if (arrows[1]) { view.eye = view.eye - view.tspeed * view.right;   accum = 0; }
+    if (arrows[2]) { view.eye = view.eye + view.tspeed * view.forward; accum = 0; }
+    if (arrows[3]) { view.eye = view.eye - view.tspeed * view.forward; accum = 0; }
+
+    if (zoom[0]) { view.tspeed *= 1.1f; }
+    if (zoom[1]) { view.tspeed /= 1.1f; }
 
     return false;
 }
