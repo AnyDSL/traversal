@@ -1,5 +1,4 @@
 # Auto generated interface
-src/frontend/traversal.h
 src/frontend/traversal_gpu.h
 src/frontend/traversal_cpu.h
 
