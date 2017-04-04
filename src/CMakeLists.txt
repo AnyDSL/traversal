@@ -4,7 +4,8 @@ set(FRONTEND_SRCS
     frontend/main.cpp
     frontend/loaders.h
     frontend/options.h
-    frontend/traversal.h)
+    frontend/traversal_cpu.h
+    frontend/traversal_gpu.h)
 
 set(COMMON_SRCS
     common/debug.impala
@@ -18,46 +19,63 @@ set(COMMON_SRCS
     common/instancing.impala
     common/traversal.impala)
 
-if(BACKEND STREQUAL "cpu")
-    set(MAPPING_SRCS mappings/mapping_cpu.impala)
-    set(LOADER_SRC frontend/load_mbvh.cpp)
-    set(TRAVERSAL_DEFS "-Dget_time=anydsl_get_micro_time" "-Dintersect=intersect_cpu" "-Doccluded=occluded_cpu" "-DTRAVERSAL_PLATFORM=Host" "-DTRAVERSAL_DEVICE=0")
-elseif(BACKEND STREQUAL "nvvm")
-    set(MAPPING_SRCS mappings/mapping_gpu.impala)
-    set(LOADER_SRC frontend/load_bvh.cpp)
-    set(TRAVERSAL_DEFS "-Dget_time=anydsl_get_kernel_time" "-Dintersect=intersect_gpu" "-Doccluded=occluded_gpu" "-DTRAVERSAL_PLATFORM=Cuda" "-DTRAVERSAL_DEVICE=0")
-else()
-    message(FATAL_ERROR "Backend not supported")
-endif()
-
-set(FRONTEND_SRCS ${FRONTEND_SRCS} ${LOADER_SRC})
-set(IMPALA_SRCS ${MAPPING_SRCS} ${COMMON_SRCS})
-
-add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/frontend/traversal.h
-                   COMMAND impala -emit-c-interface ${IMPALA_SRCS}
-                          ${ANYDSL_RUNTIME_DIR}/src/runtime.impala
-                          ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics.impala
-                          ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics_${BACKEND}.impala
-                          ${ANYDSL_RUNTIME_DIR}/platforms/intrinsics_thorin.impala
-                          -o frontend/traversal
-                   DEPENDS ${IMPALA_SRCS}
-                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
 set(CLANG_FLAGS -mavx2 -mavx -mfma -ffast-math CACHE ON "CLANG compilation options (AVX2 and AVX are required on the CPU)")
-anydsl_runtime_wrap(IMPALA_PROGRAM
-                    CLANG_FLAGS ${CLANG_FLAGS}
-                    FILES ${IMPALA_SRCS})
 
-set_source_files_properties(frontend/traversal.h PROPERTIES GENERATED TRUE)
+function(generate_traversal)
+    cmake_parse_arguments("PARGS" "" "NAME;FRONTEND;LOADER;MAPPING;VIEWER" "DEFS" ${ARGN})
+    if(NOT "${PARGS_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unparsed arguments ${PARGS_UNPARSED_ARGUMENTS}")
+    endif()
 
-# Traversal library
-add_library(traversal ${IMPALA_PROGRAM})
-target_link_libraries(traversal ${ANYDSL_RUNTIME_LIBRARY} ${ANYDSL_RUNTIME_LIBRARIES})
-target_compile_definitions(traversal PUBLIC ${TRAVERSAL_DEFS})
+    # Traversal library on the CPU
+    set(_frontend_srcs ${FRONTEND_SRCS} ${PARGS_LOADER})
+    set(_impala_srcs ${PARGS_MAPPING} ${COMMON_SRCS})
 
-# Traversal frontend
-add_executable(frontend ${FRONTEND_SRCS})
-target_link_libraries(frontend traversal)
+    anydsl_runtime_wrap(_impala_program
+                        NAME ${PARGS_NAME}
+                        INTERFACE "frontend/${PARGS_NAME}"
+                        CLANG_FLAGS ${CLANG_FLAGS}
+                        FILES ${_impala_srcs})
+
+    add_library(${PARGS_NAME} ${_impala_program})
+    target_link_libraries(${PARGS_NAME} ${ANYDSL_RUNTIME_LIBRARY} ${ANYDSL_RUNTIME_LIBRARIES})
+    target_compile_definitions(${PARGS_NAME} PUBLIC ${PARGS_DEFS})
+
+    add_executable(${PARGS_FRONTEND} ${_frontend_srcs})
+    target_link_libraries(${PARGS_FRONTEND} ${PARGS_NAME})
+
+    add_executable(${PARGS_VIEWER} tools/viewer.cpp frontend/load_mesh.cpp ${PARGS_LOADER} ${TOOLS_COMMON_SRCS})
+    target_compile_definitions(${PARGS_VIEWER} PUBLIC ${PARGS_DEFS})
+    target_link_libraries(${PARGS_VIEWER} ${PARGS_NAME} ${SDL2_LIBRARY})
+endfunction()
+
+generate_traversal(NAME traversal_cpu
+                   VIEWER viewer_cpu
+                   FRONTEND frontend_cpu
+                   LOADER frontend/load_mbvh.cpp
+                   MAPPING mappings/mapping_cpu.impala
+                   DEFS
+                        -Dget_time=anydsl_get_micro_time
+                        -Dintersect=intersect_cpu
+                        -Doccluded=occluded_cpu
+                        -DTRAVERSAL_PLATFORM=Host
+                        -DTRAVERSAL_DEVICE=0
+                        # Prevent conflicts between traversal_cpu/traversal_gpu
+                        -DTRAVERSAL_CPU)
+
+generate_traversal(NAME traversal_gpu
+                   VIEWER viewer_gpu
+                   FRONTEND frontend_gpu
+                   LOADER frontend/load_bvh.cpp
+                   MAPPING mappings/mapping_gpu.impala
+                   DEFS
+                        -Dget_time=anydsl_get_kernel_time
+                        -Dintersect=intersect_gpu
+                        -Doccluded=occluded_gpu
+                        -DTRAVERSAL_PLATFORM=Cuda
+                        -DTRAVERSAL_DEVICE=0
+                        # Prevent conflicts between traversal_cpu/traversal_gpu
+                        -DTRAVERSAL_GPU)
 
 # Tools
 set(TOOLS_COMMON_SRCS
@@ -76,8 +94,3 @@ add_executable(fbufdiff tools/fbufdiff.cpp)
 add_executable(gen_primary tools/gen_primary.cpp ${TOOLS_COMMON_SRCS})
 add_executable(gen_random  tools/gen_random.cpp  ${TOOLS_COMMON_SRCS})
 add_executable(gen_shadow  tools/gen_shadow.cpp  ${TOOLS_COMMON_SRCS})
-
-add_executable(viewer tools/viewer.cpp frontend/load_mesh.cpp ${LOADER_SRC} ${TOOLS_COMMON_SRCS})
-target_compile_definitions(viewer PUBLIC ${TRAVERSAL_DEFS})
-target_link_libraries(viewer traversal ${SDL2_LIBRARY})
-
