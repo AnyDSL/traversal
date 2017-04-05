@@ -479,9 +479,9 @@ int main(int argc, char** argv) {
         // Copy image to screen
         SDL_LockSurface(screen);
         for (int y = 0; y < cfg.height; y++) {
-            char* row = (char*)screen->pixels + screen->pitch * y;
+            unsigned char* row = (unsigned char*)screen->pixels + screen->pitch * y;
             for (int x = 0; x < cfg.width; x++) {
-                char color = image[y * cfg.width + x] * 255.0f / accum;
+                unsigned char color = image[y * cfg.width + x] * 255.0f / accum;
                 row[x * 4 + 0] = color;
                 row[x * 4 + 1] = color;
                 row[x * 4 + 2] = color;
