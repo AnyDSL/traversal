@@ -82,6 +82,8 @@ set(TOOLS_COMMON_SRCS
     frontend/bvh_format.h
     frontend/loaders.h
     frontend/options.h
+    frontend/traversal_gpu.h
+    frontend/traversal_cpu.h
     frontend/traversal.h
     tools/linear.h
     tools/camera.h)
