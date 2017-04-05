@@ -1,12 +1,12 @@
+# Source files common to the frontend and the viewer tool
 set(FRONTEND_SRCS
     frontend/bvh_format.h
     frontend/load_rays.cpp
-    frontend/main.cpp
     frontend/loaders.h
     frontend/options.h
-    frontend/traversal_cpu.h
-    frontend/traversal_gpu.h)
+    frontend/traversal.h)
 
+# Common impala files used in both the CPU and GPU versions
 set(COMMON_SRCS
     common/debug.impala
     common/float.impala
@@ -28,7 +28,6 @@ function(generate_traversal)
     endif()
 
     # Traversal library on the CPU
-    set(_frontend_srcs ${FRONTEND_SRCS} ${PARGS_LOADER})
     set(_impala_srcs ${PARGS_MAPPING} ${COMMON_SRCS})
 
     anydsl_runtime_wrap(_impala_program
@@ -37,14 +36,23 @@ function(generate_traversal)
                         CLANG_FLAGS ${CLANG_FLAGS}
                         FILES ${_impala_srcs})
 
+    set(_interface_target ${PARGS_NAME}-interface)
+    add_custom_target(${_interface_target} DEPENDS frontend/${PARGS_NAME}.h)
+
     add_library(${PARGS_NAME} ${_impala_program})
     target_link_libraries(${PARGS_NAME} ${ANYDSL_RUNTIME_LIBRARY} ${ANYDSL_RUNTIME_LIBRARIES})
     target_compile_definitions(${PARGS_NAME} PUBLIC ${PARGS_DEFS})
 
-    add_executable(${PARGS_FRONTEND} ${_frontend_srcs})
+    add_executable(${PARGS_FRONTEND} frontend/main.cpp ${FRONTEND_SRCS} ${PARGS_LOADER})
+    add_dependencies(${PARGS_FRONTEND} ${_interface_target})
     target_link_libraries(${PARGS_FRONTEND} ${PARGS_NAME})
 
-    add_executable(${PARGS_VIEWER} tools/viewer.cpp frontend/load_mesh.cpp ${PARGS_LOADER} ${TOOLS_COMMON_SRCS})
+    add_executable(${PARGS_VIEWER}
+        tools/viewer.cpp
+        frontend/load_mesh.cpp
+        ${PARGS_LOADER}
+        ${FRONTEND_SRCS})
+    add_dependencies(${PARGS_VIEWER} ${_interface_target})
     target_compile_definitions(${PARGS_VIEWER} PUBLIC ${PARGS_DEFS})
     target_link_libraries(${PARGS_VIEWER} ${PARGS_NAME} ${SDL2_LIBRARY})
 endfunction()
@@ -82,8 +90,6 @@ set(TOOLS_COMMON_SRCS
     frontend/bvh_format.h
     frontend/loaders.h
     frontend/options.h
-    frontend/traversal_gpu.h
-    frontend/traversal_cpu.h
     frontend/traversal.h
     tools/linear.h
     tools/camera.h)
