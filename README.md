@@ -10,8 +10,6 @@ The traversal code comes in two flavours:
 
 ## Building
 
-Run CMake and set the `BACKEND` variable to `cpu` to generate the CPU version, or `nvvm` to generate the GPU version:
-
     git clone https://user@github.com/AnyDSL/traversal.git
     cd traversal
     mkdir build
@@ -26,16 +24,19 @@ Run it with `-h` to get the list of options.
 
 When runnning the traversal on the GPU, make sure to run the executables in the directory where the file containing the compiled kernels (e.g. `traversal.nvvm` for the NVVM backend) is located.
 
-A sample BVH file and a primary ray distribution are provided for testing. You can use them with the frontend, like so:
+A sample BVH file and a primary ray distribution are provided for testing. You can use them with the frontend, like so (replace `<version>` with `cpu` or `gpu`, depending on which device the traversal runs):
 
     cd build/src
-    ./frontend -a ../../testing/sibenik.bvh -r ../../testing/sibenik01.rays -n 80 -d 20 -o output.fbuf
+    ./frontend_<version> -a ../../testing/sibenik.bvh -r ../../testing/sibenik01.rays -n 80 -d 20 -o output.fbuf
+
+Then, check the results with the `fbuf2png` tool:
+
     ./fbuf2png output.fbuf image.png
 
 You can also use the BVH file with the `viewer` utility:
 
     cd build/src
-    ./viewer -a ../../testing/sibenik.bvh
+    ./viewer_<version> -a ../../testing/sibenik.bvh
 
 ## Tools
 
