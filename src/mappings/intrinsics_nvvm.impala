@@ -1,0 +1,11 @@
+static backend = Backend {
+    acc : nvvm_accelerator,
+    dev : 0,
+    math : nvvm_intrinsics,
+    minmin : nvvm_minmin,
+    maxmax : nvvm_maxmax,
+    minmax : nvvm_minmax,
+    maxmin : nvvm_maxmin,
+    ldg4_i32 : |a: &i32| nvvm_ldg4_i32(a as &[1]simd[i32 * 4]),
+    ldg4_f32 : |a: &f32| nvvm_ldg4_f32(a as &[1]simd[f32 * 4]),
+};

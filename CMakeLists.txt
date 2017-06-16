@@ -6,6 +6,22 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 set(CMAKE_CXX_STANDARD 11)
 
+set(GPU_BACKEND ${GPU_BACKEND} CACHE STRING "select the GPU backend from the following: NVVM, AMDGPU")
+if(NOT GPU_BACKEND)
+    set(GPU_BACKEND nvvm CACHE STRING "select the GPU backend from the following: NVVM, AMDGPU" FORCE)
+endif()
+string(TOLOWER "${GPU_BACKEND}" GPU_BACKEND)
+message(STATUS "Selected GPU backend: ${GPU_BACKEND}")
+set(GPU_INTRINSICS intrinsics_${GPU_BACKEND}.impala)
+
+if(GPU_BACKEND STREQUAL "nvvm")
+    set(GPU_PLATFORM "Cuda")
+    set(GPU_DEVICE "0")
+else()
+    set(GPU_PLATFORM "HSA")
+    set(GPU_DEVICE "1")
+endif()
+
 find_package(AnyDSL-runtime REQUIRED)
 
 include(${ANYDSL_RUNTIME_CMAKE_DIR}/Runtime.cmake)

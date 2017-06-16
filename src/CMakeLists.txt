@@ -22,13 +22,13 @@ set(COMMON_SRCS
 set(CLANG_FLAGS -mavx2 -mavx -mfma -ffast-math CACHE ON "CLANG compilation options (AVX2 and AVX are required on the CPU)")
 
 function(generate_traversal)
-    cmake_parse_arguments("PARGS" "" "NAME;FRONTEND;LOADER;MAPPING;VIEWER" "DEFS" ${ARGN})
+    cmake_parse_arguments("PARGS" "" "NAME;FRONTEND;LOADER;MAPPING;INTRINSICS;VIEWER" "DEFS" ${ARGN})
     if(NOT "${PARGS_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unparsed arguments ${PARGS_UNPARSED_ARGUMENTS}")
     endif()
 
     # Traversal library on the CPU
-    set(_impala_srcs ${PARGS_MAPPING} ${COMMON_SRCS})
+    set(_impala_srcs ${PARGS_INTRINSICS} ${PARGS_MAPPING} ${COMMON_SRCS})
 
     anydsl_runtime_wrap(_impala_program
                         NAME ${PARGS_NAME}
@@ -76,12 +76,13 @@ generate_traversal(NAME traversal_gpu
                    FRONTEND frontend_gpu
                    LOADER frontend/load_bvh.cpp
                    MAPPING mappings/mapping_gpu.impala
+                   INTRINSICS mappings/${GPU_INTRINSICS}
                    DEFS
                         -Dget_time=anydsl_get_kernel_time
                         -Dintersect=intersect_gpu
                         -Doccluded=occluded_gpu
-                        -DTRAVERSAL_PLATFORM=Cuda
-                        -DTRAVERSAL_DEVICE=0
+                        -DTRAVERSAL_PLATFORM=${GPU_PLATFORM}
+                        -DTRAVERSAL_DEVICE=${GPU_DEVICE}
                         # Prevent conflicts between traversal_cpu/traversal_gpu
                         -DTRAVERSAL_GPU)
 
