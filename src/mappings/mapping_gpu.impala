@@ -160,6 +160,7 @@ fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
                 *(&hits(id) as &mut simd[f32 * 4]) = simd[bitcast[f32](inst), bitcast[f32](tri), t, u];
             });
         }
+        acc.sync();
     }
 }
 
