@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     std::ofstream ray_file(parser.arguments()[0], std::ofstream::binary);
     if (!ray_file) {
         std::cerr << "Cannot open output file." << std::endl;
-        return false;
+        return EXIT_FAILURE;
     }
 
     for (int y = 0; y < height; y++) {

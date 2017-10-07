@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     std::ifstream fbuf_file(parser.arguments()[0], std::ofstream::binary);
     std::ofstream png_file(parser.arguments()[1], std::ofstream::binary);
     if (!fbuf_file || !png_file)
-        return false;
+        return EXIT_FAILURE;
 
     // Read fbuf file and convert it to an image
     std::vector<float> float_image(width * height);
@@ -56,19 +56,19 @@ int main(int argc, char** argv) {
 
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     if (!png_ptr) {
-        return false;
+        return EXIT_FAILURE;
     }
 
     png_infop info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr) {
         png_destroy_read_struct(&png_ptr, nullptr, nullptr);
-        return false;
+        return EXIT_FAILURE;
     }
 
     std::vector<uint8_t> row(width * 4);
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_write_struct(&png_ptr, &info_ptr);
-        return false;
+        return EXIT_FAILURE;
     }
 
     png_set_write_fn(png_ptr, &png_file, write_to_stream, flush_stream);
