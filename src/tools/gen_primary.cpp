@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     std::ofstream ray_file(parser.arguments()[0], std::ofstream::binary);
     if (!ray_file) {
         std::cerr << "Cannot open output file." << std::endl;
-        return false;
+        return EXIT_FAILURE;
     }
 
     Camera cam = gen_camera(eye, center, up, fov, (float)width / (float)height);
