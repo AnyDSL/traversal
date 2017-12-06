@@ -61,7 +61,7 @@ fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
         while true {
             let tri_data = &tris(tri_id) as &[float];
 
-            for i in @unroll(0, 4) {
+            for i in unroll(0, 4) {
                 let id = bitcast[i32](tri_data(48 + i));
 
                 let v0 = vec3(real(tri_data( 0 + i)), real(tri_data( 4 + i)), real(tri_data( 8 + i)));
@@ -96,7 +96,7 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
         // Cull this node if it is too far away
         if all(greater_eq(tmin, t)) { exit() }
 
-        for i in @unroll(0, 4) {
+        for i in unroll(0, 4) {
             if node.children(i) == 0 { break() }
 
             let box = Box {
@@ -122,14 +122,14 @@ fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
     |ray_count, body| {
         assert(|| { ray_count % vector_size == 0 }, "iterate_rays: number of rays must be a multiple of vector size");
 
-        for j in $parallel(0, 0, ray_count / vector_size) {
-            for i in range_step(j * vector_size, (j + 1) * vector_size, vector_size) @{
+        for j in parallel(0, 0, ray_count / vector_size) {
+            for i in range_step(j * vector_size, (j + 1) * vector_size, vector_size) {
                 let mut org: Vec3;
                 let mut dir: Vec3;
                 let mut tmin: Real;
                 let mut tmax: Real;
 
-                for k in @range(0, vector_size) {
+                for k in unroll(0, vector_size) {
                     org.x(k) = rays(i + k).org.x;
                     org.y(k) = rays(i + k).org.y;
                     org.z(k) = rays(i + k).org.z;
@@ -144,7 +144,7 @@ fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
                 }
 
                 body(org, dir, tmin, tmax, |inst, tri, t, u, v| {
-                    for j in @unroll(0, vector_size) {
+                    for j in unroll(0, vector_size) {
                         hits(i + j).inst_id = inst(j);
                         hits(i + j).tri_id = tri(j);
                         hits(i + j).tmax = t(j);
@@ -161,7 +161,7 @@ fn transparency(indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask],
         let mut bit_mask = movmskps256(mask);
         let mut transp = bitcast[simd[i32 * 8]](mask);
         let w = real(1.0f) - u - v;
-        for i in @unroll(0, vector_size) {
+        for i in unroll(0, vector_size) {
             if (bit_mask & 1) != 0 {
                 let tri = *(&indices(tri_id(i) * 4) as &simd[i32 * 4]);
                 let uv0 = texcoords(tri(0));
@@ -171,7 +171,7 @@ fn transparency(indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask],
                 let tu = uv0.x * w(i) + uv1.x * u(i) + uv2.x * v(i);
                 let tv = uv0.y * w(i) + uv1.y * u(i) + uv2.y * v(i);
 
-                let m = $lookup_mask(masks(tri(3)), mask_buf, tu, tv);
+                let m = lookup_mask(masks(tri(3)), mask_buf, tu, tv);
 
                 transp(i) = if m { -1 } else { 0 }
             }

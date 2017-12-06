@@ -49,7 +49,7 @@ struct TraversalConfig {
     any_hit: bool
 }
 
-fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, config: TraversalConfig) -> () @{
+fn @traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, record_hit: RecordHitFn, config: TraversalConfig) -> () {
     // Initialize traversal variables
     let idir = vec3(safe_rcp(dir.x), safe_rcp(dir.y), safe_rcp(dir.z));
     let oidir = vec3_mul(idir, org);
@@ -60,7 +60,7 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
     let mut inst_id = intr(-1);
 
     // Traversal loop
-    while !stack.is_empty() @{
+    while !stack.is_empty() {
         let terminate = break;
 
         // Intersect children and update stack
@@ -69,9 +69,9 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
         }
 
         // Intersect leaves
-        while is_leaf(stack.top()) @{
+        while is_leaf(stack.top()) {
             // The leaf may contain a list of instanced meshes
-            for inst, traverse_instance in config.iterate_instances(t, stack) @{
+            for inst, traverse_instance in config.iterate_instances(t, stack) {
                 let tdir = transform_v(inst.transf, dir);
                 let torg = transform_p(inst.transf, org);
                 let when_hit: RecordHitFn = |inst0, intr0, t0, u0, v0| -> () {
@@ -108,11 +108,11 @@ fn traverse_ray(stack: Stack, org: Vec3, dir: Vec3, tmin: Real, tmax: Real, reco
     record_hit(inst_id, tri_id, t, u, v);
 }
 
-fn traverse_rays(root: i32, iterate_rays: IterateRaysFn, ray_count: i32, config: TraversalConfig) -> () {
+fn @traverse_rays(root: i32, iterate_rays: IterateRaysFn, ray_count: i32, config: TraversalConfig) -> () {
     for org, dir, tmin, tmax, record_hit in iterate_rays(ray_count) {
         // Allocate a stack for the traversal
         let stack = allocate_stack();
         stack.push(root, tmin);
-        @traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
+        traverse_ray(stack, org, dir, tmin, tmax, record_hit, config);
     }
 }

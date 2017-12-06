@@ -94,8 +94,8 @@ fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
     }
 }
 
-fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
-    |t, stack, body| {
+fn @iterate_children(nodes: &[Node]) -> IterateChildrenFn {
+    @|t, stack, body| {
         let node_ptr = &nodes(stack.top()) as &[f32];
         let bb0 = backend.ldg4_f32(&node_ptr(0));
         let bb1 = backend.ldg4_f32(&node_ptr(4));
@@ -117,8 +117,8 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
             (false, 0.0f)
         };
 
-        let (hit1, t1) = @intersect_child(box1);
-        let (hit2, t2) = @intersect_child(box2);
+        let (hit1, t1) = intersect_child(box1);
+        let (hit2, t2) = intersect_child(box2);
 
         if !hit1 && !hit2 {
             stack.pop();
@@ -138,8 +138,8 @@ fn iterate_children(nodes: &[Node]) -> IterateChildrenFn {
     }
 }
 
-fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
-    |ray_count, body| @{
+fn @iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
+    @|ray_count, body| {
         let acc   = backend.acc(backend.dev);
         let grid  = (ray_count / block_h, block_h, 1);
         let block = (block_w, block_h, 1);
@@ -157,9 +157,9 @@ fn iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
             let ray0 = backend.ldg4_f32(&ray_ptr(0));
             let ray1 = backend.ldg4_f32(&ray_ptr(4));
 
-            @body(vec3(ray0(0), ray0(1), ray0(2)),
-                  vec3(ray1(0), ray1(1), ray1(2)),
-                  ray0(3), ray1(3), |inst, tri, t, u, v| {
+            @@body(vec3(ray0(0), ray0(1), ray0(2)),
+                   vec3(ray1(0), ray1(1), ray1(2)),
+                   ray0(3), ray1(3), |inst, tri, t, u, v| {
                 *(&hits(id) as &mut simd[f32 * 4]) = simd[bitcast[f32](inst), bitcast[f32](tri), t, u];
             });
         }
