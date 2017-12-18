@@ -4,10 +4,10 @@ static backend = Backend {
     math : amdgpu_intrinsics,
     minmin : amdgcn_minmin,
     maxmax : amdgcn_maxmax,
-    minmax : |a: i32, b: i32, c: i32| max_i32(min_i32(a, b), c),
-    maxmin : |a: i32, b: i32, c: i32| min_i32(max_i32(a, b), c),
-    ldg4_i32 : |a: &i32| *(a as &simd[i32 * 4]),
-    ldg4_f32 : |a: &f32| *(a as &simd[f32 * 4]),
+    minmax : @|a: i32, b: i32, c: i32| max_i32(min_i32(a, b), c),
+    maxmin : @|a: i32, b: i32, c: i32| min_i32(max_i32(a, b), c),
+    ldg4_i32 : @|a: &i32| *(a as &simd[i32 * 4]),
+    ldg4_f32 : @|a: &f32| *(a as &simd[f32 * 4]),
 };
-fn min_i32(a: i32, b: i32) -> i32 { if a < b { a } else { b } }
-fn max_i32(a: i32, b: i32) -> i32 { if a > b { a } else { b } }
+fn @min_i32(a: i32, b: i32) -> i32 { if a < b { a } else { b } }
+fn @max_i32(a: i32, b: i32) -> i32 { if a > b { a } else { b } }

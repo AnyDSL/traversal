@@ -19,31 +19,31 @@ type Mask = bool;
 type Intr = i32;
 type HitFn = fn(Intr, Real, Real, Real) -> ();
 
-fn real(x: f32) -> Real { x }
-fn intr(x: i32) -> Intr { x }
-fn mask(x: bool) -> Mask { x }
+fn @real(x: f32) -> Real { x }
+fn @intr(x: i32) -> Intr { x }
+fn @mask(x: bool) -> Mask { x }
 
-fn terminated(a: Intr) -> Mask { a >= 0 }
-fn any(m: Mask) -> bool { m }
-fn all(m: Mask) -> bool { m }
-fn and(a: Mask, b: Mask) -> Mask { a & b }
-fn greater_eq(a: Real, b: Real) -> Mask { a >= b }
-fn greater(a: Real, b: Real) -> Mask    { a >  b }
-fn not_eq(a: Real, b: Real) -> Mask     { a != b }
-fn select_real(m: Mask, a: Real, b: Real) -> Real { if m { a } else { b } }
-fn select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
+fn @terminated(a: Intr) -> Mask { a >= 0 }
+fn @any(m: Mask) -> bool { m }
+fn @all(m: Mask) -> bool { m }
+fn @and(a: Mask, b: Mask) -> Mask { a & b }
+fn @greater_eq(a: Real, b: Real) -> Mask { a >= b }
+fn @greater(a: Real, b: Real) -> Mask    { a >  b }
+fn @not_eq(a: Real, b: Real) -> Mask     { a != b }
+fn @select_real(m: Mask, a: Real, b: Real) -> Real { if m { a } else { b } }
+fn @select_intr(m: Mask, a: Intr, b: Intr) -> Intr { if m { a } else { b } }
 
-fn abs_real(r: Real) -> Real { backend.math.fabsf(r) }
-fn rcp_real(r: Real) -> Real { 1.0f / r }
-fn prodsign_real(x: Real, y: Real) -> Real { bitcast[f32](bitcast[i32](x) ^ (bitcast[i32](y) & intr(bitcast[i32](0x80000000u)))) }
-fn safe_rcp(x: Real) -> Real { if x == 0.0f { backend.math.copysignf(flt_max, x) } else { rcp_real(x) } }
+fn @abs_real(r: Real) -> Real { backend.math.fabsf(r) }
+fn @rcp_real(r: Real) -> Real { 1.0f / r }
+fn @prodsign_real(x: Real, y: Real) -> Real { bitcast[f32](bitcast[i32](x) ^ (bitcast[i32](y) & intr(bitcast[i32](0x80000000u)))) }
+fn @safe_rcp(x: Real) -> Real { if x == 0.0f { backend.math.copysignf(flt_max, x) } else { rcp_real(x) } }
 
-fn min_real(a: Real, b: Real) -> Real { backend.math.fminf(a, b) }
-fn max_real(a: Real, b: Real) -> Real { backend.math.fmaxf(a, b) }
-fn minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.minmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
-fn maxmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.maxmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
-fn minmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.minmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
-fn maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.maxmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
+fn @min_real(a: Real, b: Real) -> Real { backend.math.fminf(a, b) }
+fn @max_real(a: Real, b: Real) -> Real { backend.math.fmaxf(a, b) }
+fn @minmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.minmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
+fn @maxmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.maxmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
+fn @minmax_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.minmax(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
+fn @maxmin_real(a: Real, b: Real, c: Real) -> Real { bitcast[f32](backend.maxmin(bitcast[i32](a), bitcast[i32](b), bitcast[i32](c))) }
 
 struct BBox {
     lo_x: f32, hi_x: f32,
@@ -60,8 +60,8 @@ struct Node {
     pad1: i32
 }
 
-fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
-    |t, stack, body| {
+fn @iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
+    @|t, stack, body| {
         let mut loop_id = !stack.top();
         while true {
             let sv0 = backend.ldg4_f32(&tris(loop_id + 0).x);
@@ -77,13 +77,13 @@ fn iterate_triangles(nodes: &[Node], tris: &[Vec4]) -> IterateTrianglesFn {
             let n = vec3_cross(e1, e2);
 
             let tri = Tri {
-                v0: || { v0 },
-                e1: || { e1 },
-                e2: || { e2 },
-                n:  || { n }
+                v0: @|| { v0 },
+                e1: @|| { e1 },
+                e2: @|| { e2 },
+                n:  @|| { n }
             };
 
-            body(tri, bitcast[i32](sv1(3)));
+            @@body(tri, bitcast[i32](sv1(3)));
 
             if bitcast[u32](sv2(3)) == 0x80000000u {
                 break()
@@ -103,17 +103,17 @@ fn @iterate_children(nodes: &[Node]) -> IterateChildrenFn {
         let mut children = backend.ldg4_i32(&node_ptr(12) as &i32);
 
         let box1 = Box {
-            min: || { vec3(bb0(0), bb0(2), bb1(0)) },
-            max: || { vec3(bb0(1), bb0(3), bb1(1)) }
+            min: @|| { vec3(bb0(0), bb0(2), bb1(0)) },
+            max: @|| { vec3(bb0(1), bb0(3), bb1(1)) }
         };
 
         let box2 = Box {
-            min: || { vec3(bb1(2), bb2(0), bb2(2)) },
-            max: || { vec3(bb1(3), bb2(1), bb2(3)) }
+            min: @|| { vec3(bb1(2), bb2(0), bb2(2)) },
+            max: @|| { vec3(bb1(3), bb2(1), bb2(3)) }
         };
 
-        let intersect_child = |box| -> (bool, float) {
-            body(box, |tentry, texit, _| -> ! { return(tentry <= texit, tentry) });
+        let intersect_child = @|box| -> (bool, float) {
+            @@body(box, @|tentry, texit, _| -> ! { return(tentry <= texit, tentry) });
             (false, 0.0f)
         };
 
@@ -159,7 +159,7 @@ fn @iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
 
             @@body(vec3(ray0(0), ray0(1), ray0(2)),
                    vec3(ray1(0), ray1(1), ray1(2)),
-                   ray0(3), ray1(3), |inst, tri, t, u, v| {
+                   ray0(3), ray1(3), @|inst, tri, t, u, v| {
                 *(&hits(id) as &mut simd[f32 * 4]) = simd[bitcast[f32](inst), bitcast[f32](tri), t, u];
             });
         }
@@ -167,8 +167,8 @@ fn @iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
     }
 }
 
-fn transparency(indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
-    |mask, tri_id, u, v| {
+fn @transparency(indices: &[i32], texcoords: &[Vec2], masks: &[TransparencyMask], mask_buf: &[i8]) -> TransparencyFn {
+    @|mask, tri_id, u, v| {
         if mask {
             let tri = *(&indices(tri_id * 4) as &simd[i32 * 4]);
             let uv0 = texcoords(tri(0));
