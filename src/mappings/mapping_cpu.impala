@@ -11,7 +11,7 @@ extern "device" {
 type Real = simd[f32 * 8];
 type Mask = simd[f32 * 8];
 type Intr = simd[i32 * 8];
-type HitFn = fn (Intr, Real, Real, Real) -> ();
+type HitFn = fn(Intr, Real, Real, Real) -> ();
 
 fn real(x: f32) -> Real { simd[x, x, x, x, x, x, x, x] }
 fn intr(x: i32) -> Intr { simd[x, x, x, x, x, x, x, x] }

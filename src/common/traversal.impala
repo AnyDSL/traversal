@@ -27,15 +27,15 @@ struct Inst {
     id: i32
 }
 
-type TraverseInstanceFn = fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ();
-type RecordHitFn = fn (Intr, Intr, Real, Real, Real) -> ();
-type BoxHitFn = fn (Real, Real) -> ();
+type TraverseInstanceFn = fn(Vec3, Vec3, Real, Real, RecordHitFn) -> ();
+type RecordHitFn = fn(Intr, Intr, Real, Real, Real) -> ();
+type BoxHitFn = fn(Real, Real) -> ();
 
-type IterateRaysFn = fn (i32, fn (Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
-type IterateChildrenFn = fn (Real, Stack, fn (Box, BoxHitFn) -> ()) -> ();
-type IterateTrianglesFn = fn (Real, Stack, fn (Tri, Intr) -> ()) -> ();
-type IterateInstancesFn = fn (Real, Stack, fn(Inst, TraverseInstanceFn) -> ()) -> ();
-type TransparencyFn = fn (Mask, Intr, Real, Real) -> Mask;
+type IterateRaysFn = fn(i32, fn(Vec3, Vec3, Real, Real, RecordHitFn) -> ()) -> ();
+type IterateChildrenFn = fn(Real, Stack, fn(Box, BoxHitFn) -> ()) -> ();
+type IterateTrianglesFn = fn(Real, Stack, fn(Tri, Intr) -> ()) -> ();
+type IterateInstancesFn = fn(Real, Stack, fn(Inst, TraverseInstanceFn) -> ()) -> ();
+type TransparencyFn = fn(Mask, Intr, Real, Real) -> Mask;
 
 fn no_triangle() -> IterateTrianglesFn { |t, stack, body| {} }
 fn no_instance() -> IterateInstancesFn { |t, stack, body| {} }

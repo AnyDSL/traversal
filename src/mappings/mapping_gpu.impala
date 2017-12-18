@@ -17,7 +17,7 @@ static block_h = 2;
 type Real = f32;
 type Mask = bool;
 type Intr = i32;
-type HitFn = fn (Intr, Real, Real, Real) -> ();
+type HitFn = fn(Intr, Real, Real, Real) -> ();
 
 fn real(x: f32) -> Real { x }
 fn intr(x: i32) -> Intr { x }

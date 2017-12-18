@@ -1,14 +1,14 @@
 struct Stack {
-    push_under: fn (i32, Real) -> (),
-    push: fn (i32, Real) -> (),
-    set_sentinel: fn () -> (),
-    set_top: fn (i32, Real) -> (),
-    pop: fn () -> (),
-    top: fn () -> i32,
+    push_under: fn(i32, Real) -> (),
+    push: fn(i32, Real) -> (),
+    set_sentinel: fn() -> (),
+    set_top: fn(i32, Real) -> (),
+    pop: fn() -> (),
+    top: fn() -> i32,
     tmin: fn() -> Real,
-    is_empty: fn () -> bool,
-    pointer: fn () -> i32,
-    set_pointer: fn (i32) -> ()
+    is_empty: fn() -> bool,
+    pointer: fn() -> i32,
+    set_pointer: fn(i32) -> ()
 }
 
 fn is_leaf(node_id: i32) -> bool { node_id < 0 }

@@ -177,9 +177,9 @@ struct Hit {
     v: f32
 }
 
-type IntersectBoxFn = fn (f32, f32) -> ();
-type IntersectTriFn = fn (f32, f32, f32) -> ();
-type IntersectCellFn = fn (i32, i32, i32, f32, f32) -> bool;
+type IntersectBoxFn = fn(f32, f32) -> ();
+type IntersectTriFn = fn(f32, f32, f32) -> ();
+type IntersectCellFn = fn(i32, i32, i32, f32, f32) -> bool;
 
 fn intersect_ray_box(org: Vec3f, inv_dir: Vec3f, min: Vec3f, max: Vec3f, intr: IntersectBoxFn) -> () {
     let tmin = vec3f_mul(vec3f_sub(min, org), inv_dir);
