@@ -39,7 +39,7 @@ function(generate_traversal)
     add_custom_target(${_interface_target} DEPENDS frontend/${PARGS_NAME}.h)
 
     add_library(${PARGS_NAME} ${_impala_program})
-    target_link_libraries(${PARGS_NAME} ${ANYDSL_RUNTIME_LIBRARY} ${ANYDSL_RUNTIME_LIBRARIES})
+    target_link_libraries(${PARGS_NAME} ${AnyDSL_runtime_LIBRARIES})
     target_compile_definitions(${PARGS_NAME} PUBLIC ${PARGS_DEFS})
 
     add_executable(${PARGS_FRONTEND} frontend/main.cpp ${FRONTEND_SRCS} ${PARGS_LOADER})

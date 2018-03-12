@@ -22,10 +22,8 @@ else()
     set(GPU_DEVICE "1")
 endif()
 
-find_package(AnyDSL-runtime REQUIRED)
-
-include(${ANYDSL_RUNTIME_CMAKE_DIR}/Runtime.cmake)
-include_directories(${ANYDSL_RUNTIME_DIR}/src)
+find_package(AnyDSL_runtime REQUIRED)
+include_directories(${AnyDSL_runtime_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 find_package(PNG REQUIRED)
