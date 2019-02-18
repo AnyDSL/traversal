@@ -57,6 +57,7 @@ function(generate_traversal)
 endfunction()
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/frontend)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/frontend)
 
 generate_traversal(NAME traversal_cpu
                    VIEWER viewer_cpu
