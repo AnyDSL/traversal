@@ -144,11 +144,8 @@ fn @iterate_rays(rays: &[Ray], hits: &mut [Hit]) -> IterateRaysFn {
         let grid  = (ray_count / block_h, block_h, 1);
         let block = (block_w, block_h, 1);
 
-        for tid, bid, bdim, gdim, gid in acc.exec(grid, block) {
-            let (tidx, tidy, _) = tid;
-            let (bidx, bidy, _) = bid;
-            let (gdimx, _, _) = gdim;
-            let id = tidx() + block_w * (tidy() + block_h * (bidx() + gdimx() * bidy()));
+        for work_item in acc.exec(grid, block) {
+            let id = work_item.tidx() + block_w * (work_item.tidy() + block_h * (work_item.bidx() + work_item.gdimx() * work_item.bidy()));
             if id >= ray_count {
                 continue()
             }

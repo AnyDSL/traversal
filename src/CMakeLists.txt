@@ -56,6 +56,8 @@ function(generate_traversal)
     target_link_libraries(${PARGS_VIEWER} ${PARGS_NAME} ${SDL2_LIBRARY})
 endfunction()
 
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/frontend)
+
 generate_traversal(NAME traversal_cpu
                    VIEWER viewer_cpu
                    FRONTEND frontend_cpu
